@@ -393,9 +393,11 @@ set(SOURCES
   ui/networkproxysettingspage.cpp
   ui/networkremotesettingspage.cpp
   ui/notificationssettingspage.cpp
+  ui/nowplayingpanel.cpp
   ui/organisedialog.cpp
   ui/organiseerrordialog.cpp
   ui/playbacksettingspage.cpp
+  ui/playerbar.cpp
   ui/qtsystemtrayicon.cpp
   ui/screensaver.cpp
   ui/screenshottaker.cpp
@@ -713,9 +715,11 @@ set(HEADERS
   ui/networkproxysettingspage.h
   ui/networkremotesettingspage.h
   ui/notificationssettingspage.h
+  ui/nowplayingpanel.h
   ui/organisedialog.h
   ui/organiseerrordialog.h
   ui/playbacksettingspage.h
+  ui/playerbar.h
   ui/qtsystemtrayicon.h
   ui/screenshottaker.h
   ui/settingscategory.h

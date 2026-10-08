@@ -62,8 +62,10 @@ class Library;
 class LibraryViewContainer;
 class MimeData;
 class MultiLoadingIndicator;
+class NowPlayingPanel;
 class OSD;
 class Player;
+class PlayerBar;
 class PlaylistBackend;
 class PlaylistListContainer;
 class PlaylistManager;
@@ -297,6 +299,15 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   void ShowConsole();
 
  private:
+  // Arranges the window: the source list and its page on the left, the
+  // playlist in the middle, the Now playing panel on the right, and the
+  // player bar along the bottom. Called right after setupUi().
+  void SetUpLayout();
+  // The View menu: the sidebar, the Now playing panel, and which sections
+  // of the source list to show.
+  void SetUpViewMenu();
+  void SetNowPlayingPanelVisible(bool visible);
+
   void ConnectInfoView(SongInfoBase* view);
 
   void ApplyAddBehaviour(AddBehaviour b, MimeData* data) const;
@@ -334,6 +345,10 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   DeviceView* device_view_;
   SongInfoView* song_info_view_;
   ArtistInfoView* artist_info_view_;
+
+  PlayerBar* player_bar_;
+  NowPlayingPanel* now_playing_panel_;
+  QAction* action_show_now_playing_panel_;
 
   Lazy<SettingsDialog> settings_dialog_;
   Lazy<AddStreamDialog> add_stream_dialog_;

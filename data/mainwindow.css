@@ -118,3 +118,45 @@ QScrollBar::sub-page {
 QSplitter::handle {
   background-color: %palette-mid;
 }
+
+/* The player bar along the bottom of the window. */
+
+#player_bar {
+  background-color: %palette-base;
+  border-top: 1px solid %palette-mid;
+}
+
+/* Shuffle and repeat: labelled pills, in the accent when on. */
+
+QToolButton[sequence="true"] {
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+
+QToolButton[sequence="true"]:checked {
+  color: %palette-link;
+  background-color: %palette-button;
+}
+
+/* The Now playing panel on the right, and its row of tabs. */
+
+#now_playing_panel {
+  background-color: %palette-window;
+}
+
+#panel_segments {
+  background-color: %palette-button;
+  border-radius: 8px;
+}
+
+#panel_segments QToolButton {
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-weight: 600;
+  color: %palette-placeholdertext;
+}
+
+#panel_segments QToolButton:checked {
+  background-color: %palette-light;
+  color: %palette-text;
+}

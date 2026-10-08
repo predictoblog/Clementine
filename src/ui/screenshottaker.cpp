@@ -48,6 +48,7 @@
 #include "playlist/playlist.h"
 #include "playlist/playlistmanager.h"
 #include "ui/mainwindow.h"
+#include "ui/nowplayingpanel.h"
 #include "ui/settingsdialog.h"
 #include "widgets/fancytabwidget.h"
 
@@ -263,15 +264,40 @@ void ScreenshotTaker::TakeMainWindow(const QString& prefix) {
   }
 
   int n = 0;
+  int library_tab = 0;
   for (int i = 0; i < tabs->count(); ++i) {
-    // The spacer between the groups of tabs has no name.
-    if (!tabs->isTabVisible(i) || tabs->tabText(i).isEmpty()) continue;
+    // Spacers and the source list's section captions aren't pages.
+    if (!tabs->isTabVisible(i) || !tabs->isTabEnabled(i) ||
+        tabs->tabText(i).isEmpty()) {
+      continue;
+    }
+    if (n == 1) library_tab = i;  // the second page: Library
     tabs->setCurrentIndex(i);
     Wait(kPaintDelayMsec);
     Save(window_, QString("%1main-%2-%3")
                       .arg(prefix)
                       .arg(++n, 2, 10, QChar('0'))
                       .arg(Slug(tabs->tabText(i))));
+  }
+
+  // Each tab of the Now playing panel, beside the library.
+  NowPlayingPanel* panel = window_->findChild<NowPlayingPanel*>();
+  if (panel && panel->isVisible()) {
+    tabs->setCurrentIndex(library_tab);
+    const QList<std::pair<NowPlayingPanel::Page, QString>> pages = {
+        {NowPlayingPanel::Page_Lyrics, "lyrics"},
+        {NowPlayingPanel::Page_Artist, "artist"},
+        {NowPlayingPanel::Page_Details, "details"},
+    };
+    for (const auto& page : pages) {
+      panel->SetCurrentPage(page.first);
+      Wait(kPaintDelayMsec);
+      Save(window_, QString("%1main-%2-panel-%3")
+                        .arg(prefix)
+                        .arg(++n, 2, 10, QChar('0'))
+                        .arg(page.second));
+    }
+    panel->SetCurrentPage(NowPlayingPanel::Page_Lyrics);
   }
   tabs->setCurrentIndex(0);
 }

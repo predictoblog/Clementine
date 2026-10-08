@@ -33,6 +33,8 @@
 #include <QTimer>
 #include <QWheelEvent>
 
+#include "core/appearance.h"
+
 Amarok::Slider::Slider(Qt::Orientation orientation, QWidget* parent, uint max)
     : QSlider(orientation, parent),
       m_sliding(false),
@@ -205,6 +207,7 @@ QPolygon VolumeWedge() {
 
 Amarok::VolumeSlider::VolumeSlider(QWidget* parent, uint max)
     : Amarok::Slider(Qt::Horizontal, parent, max),
+      m_animEnter(false),
       m_animCount(0),
       m_animTimer(new QTimer(this)),
       m_pixmapInset(QPixmap(drawVolumePixmap())) {
@@ -303,8 +306,51 @@ void Amarok::VolumeSlider::wheelEvent(QWheelEvent* e) {
   emit sliderReleased(value());
 }
 
+void Amarok::VolumeSlider::SetFlat(bool flat) {
+  m_flat = flat;
+  if (flat) {
+    setMinimumSize(QSize(60, 24));
+  } else {
+    setMinimumSize(kVolumePixmapSize);
+  }
+  updateGeometry();
+  update();
+}
+
+void Amarok::VolumeSlider::paintFlat(QPainter* p) {
+  p->setRenderHint(QPainter::Antialiasing);
+  p->setPen(Qt::NoPen);
+
+  const qreal padding = 7;
+  const qreal thickness = 4;
+  const QRectF track(padding, height() / 2.0 - thickness / 2,
+                     width() - 2 * padding, thickness);
+  p->setBrush(palette().color(QPalette::Mid));
+  p->drawRoundedRect(track, thickness / 2, thickness / 2);
+
+  // The level in the text colour, and in the accent while the pointer is
+  // over it, with a knob to grab.
+  const bool hovered = m_animEnter && m_animCount > 0;
+  const QColor level = hovered ? Appearance::AccentColor(palette())
+                               : palette().color(QPalette::WindowText);
+  QRectF filled(track);
+  filled.setWidth(track.width() * value() / qMax(1, maximum()));
+  p->setBrush(level);
+  p->drawRoundedRect(filled, thickness / 2, thickness / 2);
+
+  if (hovered) {
+    p->setBrush(palette().color(QPalette::WindowText));
+    p->drawEllipse(QPointF(filled.right(), track.center().y()), 6, 6);
+  }
+}
+
 void Amarok::VolumeSlider::paintEvent(QPaintEvent*) {
   QPainter p(this);
+
+  if (m_flat) {
+    paintFlat(&p);
+    return;
+  }
 
   const int padding = 7;
   const int offset = int(double((width() - 2 * padding) * value()) / maximum());

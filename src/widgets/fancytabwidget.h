@@ -18,6 +18,7 @@
 #ifndef FANCYTABWIDGET_H
 #define FANCYTABWIDGET_H
 
+#include <QSet>
 #include <QTabWidget>
 #include <QWidget>
 #include <memory>
@@ -41,6 +42,14 @@ class FancyTabWidget : public QTabWidget {
 
   void setBackgroundPixmap(const QPixmap& pixmap);
   void addSpacer();
+  // A caption heading the tabs added after it, in the source list. Like a
+  // spacer, it's a disabled tab with an empty page.
+  void addSection(const QString& title);
+  bool isSection(int index) const;
+
+  // Shows the tab holding `page`, which can be the widget passed to addTab()
+  // or anything inside it.
+  void setCurrentPage(QWidget* page);
 
   void loadSettings(const QSettings&);
   void saveSettings(QSettings*);
@@ -52,12 +61,14 @@ class FancyTabWidget : public QTabWidget {
     Mode_Tabs,
     Mode_IconOnlyTabs,
     Mode_PlainSidebar,
+    Mode_SourceList,
   };
 
   static const QSize TabSize_LargeSidebar;
 
   static const QSize IconSize_LargeSidebar;
   static const QSize IconSize_SmallSidebar;
+  static const int kSourceListWidth;
 
   Mode mode() { return mode_; }
 
@@ -86,6 +97,7 @@ class FancyTabWidget : public QTabWidget {
   QMenu* menu_;
   Mode mode_;
   QWidget* bottom_widget_;
+  QSet<QWidget*> sections_;
 };
 
 }  // namespace Internal

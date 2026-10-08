@@ -35,10 +35,12 @@ PlaylistSequence::PlaylistSequence(QWidget* parent, SettingsProvider* settings)
       repeat_menu_(new QMenu(this)),
       shuffle_menu_(new QMenu(this)),
       loading_(false),
+      labelled_(false),
       repeat_mode_(Repeat_Off),
       shuffle_mode_(Shuffle_Off),
       dynamic_(false) {
   ui_->setupUi(this);
+  unlabelled_style_sheet_ = styleSheet();
 
   // Icons
   ui_->repeat->setIcon(AddDesaturatedIcon(
@@ -172,6 +174,7 @@ void PlaylistSequence::SetRepeatMode(RepeatMode mode) {
     repeat_mode_ = mode;
     emit RepeatModeChanged(mode);
   }
+  UpdateLabels();
 
   Save();
 }
@@ -198,6 +201,7 @@ void PlaylistSequence::SetShuffleMode(ShuffleMode mode) {
     shuffle_mode_ = mode;
     emit ShuffleModeChanged(mode);
   }
+  UpdateLabels();
 
   Save();
 }
@@ -208,8 +212,86 @@ void PlaylistSequence::SetUsingDynamicPlaylist(bool dynamic) {
       tr("Not available while using a dynamic playlist"));
 
   setEnabled(!dynamic);
+  // The buttons may live elsewhere (see shuffle_button()), out of reach of
+  // this widget's enabled state.
+  ui_->shuffle->setEnabled(!dynamic);
+  ui_->repeat->setEnabled(!dynamic);
   ui_->shuffle->setToolTip(dynamic ? not_available : tr("Shuffle"));
   ui_->repeat->setToolTip(dynamic ? not_available : tr("Repeat"));
+}
+
+void PlaylistSequence::SetLabelled(bool labelled) {
+  labelled_ = labelled;
+  setStyleSheet(labelled ? QString() : unlabelled_style_sheet_);
+
+  const Qt::ToolButtonStyle style =
+      labelled ? Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly;
+  ui_->repeat->setToolButtonStyle(style);
+  ui_->shuffle->setToolButtonStyle(style);
+
+  // Labelled, the checked state shows as the button's colour rather than a
+  // greyed-out icon, so the icons can be the plain ones that follow the theme.
+  const QIcon repeat =
+      IconLoader::Load("media-playlist-repeat", IconLoader::Base);
+  const QIcon shuffle =
+      IconLoader::Load("media-playlist-shuffle", IconLoader::Base);
+  ui_->repeat->setIcon(labelled ? repeat : AddDesaturatedIcon(repeat));
+  ui_->shuffle->setIcon(labelled ? shuffle : AddDesaturatedIcon(shuffle));
+
+  UpdateLabels();
+}
+
+QToolButton* PlaylistSequence::shuffle_button() const { return ui_->shuffle; }
+
+QToolButton* PlaylistSequence::repeat_button() const { return ui_->repeat; }
+
+void PlaylistSequence::UpdateLabels() {
+  if (!labelled_) {
+    ui_->repeat->setText(QString());
+    ui_->shuffle->setText(QString());
+    return;
+  }
+
+  QString repeat;
+  switch (repeat_mode_) {
+    case Repeat_Off:
+      repeat = tr("Repeat");
+      break;
+    case Repeat_Track:
+      repeat = tr("Repeat track");
+      break;
+    case Repeat_Album:
+      repeat = tr("Repeat album");
+      break;
+    case Repeat_Playlist:
+      repeat = tr("Repeat playlist");
+      break;
+    case Repeat_OneByOne:
+      repeat = tr("One at a time");
+      break;
+    case Repeat_Intro:
+      repeat = tr("Intros");
+      break;
+  }
+
+  QString shuffle;
+  switch (shuffle_mode_) {
+    case Shuffle_Off:
+      shuffle = tr("Shuffle");
+      break;
+    case Shuffle_All:
+      shuffle = tr("Shuffle all");
+      break;
+    case Shuffle_InsideAlbum:
+      shuffle = tr("Shuffle album");
+      break;
+    case Shuffle_Albums:
+      shuffle = tr("Shuffle albums");
+      break;
+  }
+
+  ui_->repeat->setText(repeat);
+  ui_->shuffle->setText(shuffle);
 }
 
 PlaylistSequence::ShuffleMode PlaylistSequence::shuffle_mode() const {
