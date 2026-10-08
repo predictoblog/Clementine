@@ -118,7 +118,7 @@ PlaylistView::PlaylistView(QWidget* parent)
       upgrading_from_version_(-1),
       header_loaded_(false),
       background_initialized_(false),
-      background_image_type_(Default),
+      background_image_type_(None),
       blur_radius_(kDefaultBlurRadius),
       opacity_level_(kDefaultOpacityLevel),
       previous_background_image_opacity_(0.0),
@@ -1136,7 +1136,9 @@ void PlaylistView::ReloadSettings() {
   // Background:
   QVariant q_playlistview_background_type =
       s.value(kSettingBackgroundImageType);
-  BackgroundImageType background_type(Default);
+  // No background image unless the user picked one: the clementine watermark
+  // is still available as the "Default background image" option.
+  BackgroundImageType background_type(None);
   // bg_enabled should also be checked for backward compatibility (in releases
   // <= 1.0, there was just a boolean to activate/deactivate the background)
   QVariant bg_enabled = s.value("bg_enabled");
