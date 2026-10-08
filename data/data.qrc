@@ -2,9 +2,6 @@
     <qresource prefix="/">
         <file>blank.ttf</file>
         <file>clementine_remote_qr.png</file>
-        <file>currenttrack_bar_left.png</file>
-        <file>currenttrack_bar_mid.png</file>
-        <file>currenttrack_bar_right.png</file>
         <file>currenttrack_pause.png</file>
         <file>currenttrack_play.png</file>
         <file>globalsearch.css</file>

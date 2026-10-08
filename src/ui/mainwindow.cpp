@@ -301,8 +301,6 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   // Add the now playing widget to the fancy tab widget
   ui_->tabs->addBottomWidget(ui_->now_playing);
 
-  ui_->tabs->setBackgroundPixmap(QPixmap(":/sidebar_background.png"));
-
   // Do this only after all default tabs have been added
   ui_->tabs->loadSettings(settings_);
 

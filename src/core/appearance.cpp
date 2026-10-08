@@ -155,107 +155,118 @@ bool Appearance::IsDarkPalette(const QPalette& palette) {
          palette.color(QPalette::Window).lightness();
 }
 
-QPalette Appearance::DarkPalette() {
+namespace {
+
+// The redesign's colour tokens. Both themes share one structure - a window,
+// a slightly raised surface for side panels, a raised colour for hover and
+// selection - and the same Clementine orange as the accent, a little deeper
+// in light so it keeps its contrast on white.
+struct ThemeTokens {
+  QColor window;      // the main window and track lists
+  QColor surface;     // side panels: the sidebar, now playing, settings
+  QColor raised;      // hover, selected rows, buttons
+  QColor text;        // primary text
+  QColor text_quiet;  // secondary text, placeholders
+  QColor disabled;
+  QColor accent;     // Clementine orange
+  QColor selection;  // selected rows: a warm tint of the accent
+  QColor shadow;
+};
+
+ThemeTokens DarkTokens() {
+  return {QColor(0x12, 0x12, 0x12), QColor(0x1c, 0x1c, 0x1e),
+          QColor(0x2a, 0x2a, 0x2d), QColor(0xf5, 0xf5, 0xf7),
+          QColor(0xa1, 0xa1, 0xa6), QColor(0x6e, 0x6e, 0x73),
+          QColor(0xff, 0x8a, 0x1f), QColor(0x4a, 0x2e, 0x14),
+          QColor(0x00, 0x00, 0x00)};
+}
+
+ThemeTokens LightTokens() {
+  return {QColor(0xff, 0xff, 0xff), QColor(0xf5, 0xf5, 0xf7),
+          QColor(0xe8, 0xe8, 0xed), QColor(0x1d, 0x1d, 0x1f),
+          QColor(0x6e, 0x6e, 0x73), QColor(0xa1, 0xa1, 0xa6),
+          QColor(0xe0, 0x6f, 0x00), QColor(0xff, 0xe3, 0xc7),
+          QColor(0x8e, 0x8e, 0x93)};
+}
+
+QPalette PaletteFromTokens(const ThemeTokens& t, bool dark) {
   QPalette p;
 
-  const QColor window(0x35, 0x35, 0x3a);
-  const QColor base(0x25, 0x25, 0x2a);
-  const QColor text(0xe6, 0xe6, 0xe8);
-  const QColor highlight(0x3d, 0x7e, 0xbf);
-  const QColor disabled(0x7f, 0x7f, 0x84);
-
-  p.setColor(QPalette::Window, window);
-  p.setColor(QPalette::WindowText, text);
-  p.setColor(QPalette::Base, base);
-  p.setColor(QPalette::AlternateBase, window);
-  p.setColor(QPalette::Text, text);
-  p.setColor(QPalette::Button, window);
-  p.setColor(QPalette::ButtonText, text);
-  p.setColor(QPalette::BrightText, Qt::red);
-  p.setColor(QPalette::ToolTipBase, base);
-  p.setColor(QPalette::ToolTipText, text);
-  p.setColor(QPalette::Highlight, highlight);
-  p.setColor(QPalette::HighlightedText, Qt::white);
-  p.setColor(QPalette::Link, QColor(0x5c, 0x9e, 0xdf));
-  p.setColor(QPalette::LinkVisited, QColor(0x9c, 0x7c, 0xd0));
+  p.setColor(QPalette::Window, t.surface);
+  p.setColor(QPalette::WindowText, t.text);
+  p.setColor(QPalette::Base, t.window);
+  // Alternate rows are a whisper of the raised colour rather than a stripe:
+  // the redesign leans on spacing, not zebra striping, to separate rows.
+  QColor alternate = dark ? t.window.lighter(112) : QColor(0xfa, 0xfa, 0xfb);
+  p.setColor(QPalette::AlternateBase, alternate);
+  p.setColor(QPalette::Text, t.text);
+  p.setColor(QPalette::Button, t.raised);
+  p.setColor(QPalette::ButtonText, t.text);
+  p.setColor(QPalette::BrightText, t.accent);
+  p.setColor(QPalette::ToolTipBase, t.raised);
+  p.setColor(QPalette::ToolTipText, t.text);
+  p.setColor(QPalette::Highlight, t.selection);
+  p.setColor(QPalette::HighlightedText, t.text);
+  p.setColor(QPalette::Link, t.accent);
+  p.setColor(QPalette::LinkVisited, t.accent.darker(120));
 
   // The 3D roles. Qt derives these from Button when they aren't set, which
-  // for a dark button gives washed out frames - mainwindow.css leans on Mid
-  // and Shadow for its borders, so set them explicitly.
-  p.setColor(QPalette::Light, window.lighter(140));
-  p.setColor(QPalette::Midlight, window.lighter(120));
-  p.setColor(QPalette::Mid, window.darker(120));
-  p.setColor(QPalette::Dark, window.darker(150));
-  p.setColor(QPalette::Shadow, QColor(0x10, 0x10, 0x12));
+  // gives washed out frames - mainwindow.css leans on Mid and Shadow for its
+  // borders, so set them explicitly.
+  p.setColor(QPalette::Light, dark ? t.raised.lighter(130) : QColor(Qt::white));
+  p.setColor(QPalette::Midlight, dark ? t.raised.lighter(115) : t.surface);
+  p.setColor(QPalette::Mid, dark ? QColor(0x2e, 0x2e, 0x31) : t.raised);
+  p.setColor(QPalette::Dark,
+             dark ? QColor(0x26, 0x26, 0x28) : t.raised.darker(115));
+  p.setColor(QPalette::Shadow, t.shadow);
 
-  p.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
-  p.setColor(QPalette::Disabled, QPalette::Text, disabled);
-  p.setColor(QPalette::Disabled, QPalette::ButtonText, disabled);
-  p.setColor(QPalette::Disabled, QPalette::Highlight, window.lighter(120));
-  p.setColor(QPalette::Disabled, QPalette::HighlightedText, disabled);
-  p.setColor(QPalette::Disabled, QPalette::Link, disabled);
-  p.setColor(QPalette::Disabled, QPalette::LinkVisited, disabled);
+  p.setColor(QPalette::Disabled, QPalette::WindowText, t.disabled);
+  p.setColor(QPalette::Disabled, QPalette::Text, t.disabled);
+  p.setColor(QPalette::Disabled, QPalette::ButtonText, t.disabled);
+  p.setColor(QPalette::Disabled, QPalette::Highlight, t.raised);
+  p.setColor(QPalette::Disabled, QPalette::HighlightedText, t.disabled);
+  p.setColor(QPalette::Disabled, QPalette::Link, t.disabled);
+  p.setColor(QPalette::Disabled, QPalette::LinkVisited, t.disabled);
 
   // Qt does not derive PlaceholderText from Text: a role left unset keeps the
   // default black, which is invisible against a dark base. This is what draws
   // the "Search for anything" hint in the global search box, so it has to be
   // set explicitly rather than relying on Text.
-  QColor placeholder = text;
-  placeholder.setAlpha(128);
-  p.setColor(QPalette::PlaceholderText, placeholder);
+  p.setColor(QPalette::PlaceholderText, t.text_quiet);
+
+  // Selections stay readable when the window loses focus, rather than
+  // falling back to the style's grey.
+  p.setColor(QPalette::Inactive, QPalette::Highlight, t.selection);
+  p.setColor(QPalette::Inactive, QPalette::HighlightedText, t.text);
 
   return p;
+}
+
+}  // namespace
+
+QPalette Appearance::DarkPalette() {
+  return PaletteFromTokens(DarkTokens(), true);
 }
 
 QPalette Appearance::LightPalette() {
-  QPalette p;
+  return PaletteFromTokens(LightTokens(), false);
+}
 
-  const QColor window(0xef, 0xef, 0xf0);
-  const QColor base(0xff, 0xff, 0xff);
-  const QColor text(0x1a, 0x1a, 0x1c);
-  const QColor highlight(0x30, 0x8c, 0xc6);
-  const QColor disabled(0xa0, 0xa0, 0xa4);
+QColor Appearance::AccentColor(const QPalette& palette) {
+  return IsDarkPalette(palette) ? DarkTokens().accent : LightTokens().accent;
+}
 
-  p.setColor(QPalette::Window, window);
-  p.setColor(QPalette::WindowText, text);
-  p.setColor(QPalette::Base, base);
-  p.setColor(QPalette::AlternateBase, window);
-  p.setColor(QPalette::Text, text);
-  p.setColor(QPalette::Button, window);
-  p.setColor(QPalette::ButtonText, text);
-  p.setColor(QPalette::BrightText, Qt::red);
-  p.setColor(QPalette::ToolTipBase, base);
-  p.setColor(QPalette::ToolTipText, text);
-  p.setColor(QPalette::Highlight, highlight);
-  p.setColor(QPalette::HighlightedText, Qt::white);
-  p.setColor(QPalette::Link, QColor(0x1f, 0x6f, 0xb0));
-  p.setColor(QPalette::LinkVisited, QColor(0x76, 0x53, 0xb0));
-
-  p.setColor(QPalette::Disabled, QPalette::WindowText, disabled);
-  p.setColor(QPalette::Disabled, QPalette::Text, disabled);
-  p.setColor(QPalette::Disabled, QPalette::ButtonText, disabled);
-  p.setColor(QPalette::Disabled, QPalette::HighlightedText, disabled);
-
-  // Qt does not derive PlaceholderText from Text: a role left unset keeps the
-  // default black, which is invisible against a dark base. This is what draws
-  // the "Search for anything" hint in the global search box, so it has to be
-  // set explicitly rather than relying on Text.
-  QColor placeholder = text;
-  placeholder.setAlpha(128);
-  p.setColor(QPalette::PlaceholderText, placeholder);
-
-  return p;
+QColor Appearance::QuietTextColor(const QPalette& palette) {
+  return IsDarkPalette(palette) ? DarkTokens().text_quiet
+                                : LightTokens().text_quiet;
 }
 
 QPalette Appearance::BasePalette() const {
+  // Both themes use Clementine's own palette, so the accent, the selection
+  // colour and the panel surfaces are the same everywhere rather than
+  // whatever the desktop's palette happens to be.
   if (EffectiveTheme() == ThemeMode_Dark) return DarkPalette();
-
-  // The system palette is the right light base nearly always, and preserving
-  // it keeps the app looking native. The exception is a desktop that is
-  // itself dark: there it isn't a light palette at all, so someone who has
-  // explicitly asked for Light would otherwise still get a dark window.
-  if (IsDarkPalette(kDefaultPalette)) return LightPalette();
-  return kDefaultPalette;
+  return LightPalette();
 }
 
 void Appearance::ApplyTheme() {

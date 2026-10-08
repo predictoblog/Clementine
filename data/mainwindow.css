@@ -9,7 +9,7 @@ darwin QMenu {
 #playlist {
   background-color: %palette-base;
   alternate-background-color: %palette-alternate-base;
-
+  border: none;
 }
 
 #playlist[default_background_enabled = "true"] {
@@ -20,10 +20,12 @@ darwin QMenu {
   background-clip: content;
 }
 
+/* Tool buttons: flat until hovered, then a soft raised fill - no borders. */
+
 QToolButton {
-  border: 2px solid transparent;
-  border-radius: 3px;
-  padding: 1px;
+  border: none;
+  border-radius: 6px;
+  padding: 3px;
 }
 
 QToolButton::menu-button {
@@ -36,19 +38,83 @@ QToolButton[popupMode="1"] {
 }
 
 QToolButton:hover {
-  border: 2px solid %palette-highlight;
-  background-color: %palette-highlight-lighter;
+  background-color: %palette-button;
 }
 
 QToolButton:hover[popupMode="1"] {
   padding-right: 16px;
 }
 
-QToolButton:pressed {
-  border: 2px solid %palette-highlight-darker;
-  background-color: %palette-highlight-lighter;
+QToolButton:pressed,
+QToolButton:checked {
+  background-color: %palette-mid;
 }
 
 QToolButton:pressed[popupMode="1"] {
   padding-right: 16px;
+}
+
+/* Column headers: flat labels in the secondary text colour. */
+
+QHeaderView {
+  background-color: %palette-base;
+  border: none;
+}
+
+QHeaderView::section {
+  background-color: %palette-base;
+  color: %palette-placeholdertext;
+  border: none;
+  border-bottom: 1px solid %palette-mid;
+  padding: 4px 6px;
+}
+
+/* Thin, rounded scroll bars that stay out of the way. */
+
+QScrollBar:vertical {
+  background: transparent;
+  width: 10px;
+  margin: 0px;
+}
+
+QScrollBar:horizontal {
+  background: transparent;
+  height: 10px;
+  margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+  background: %palette-mid;
+  border-radius: 4px;
+  min-height: 32px;
+  margin: 1px 2px;
+}
+
+QScrollBar::handle:horizontal {
+  background: %palette-mid;
+  border-radius: 4px;
+  min-width: 32px;
+  margin: 2px 1px;
+}
+
+QScrollBar::handle:hover {
+  background: %palette-placeholdertext;
+}
+
+QScrollBar::add-line,
+QScrollBar::sub-line {
+  width: 0px;
+  height: 0px;
+  border: none;
+}
+
+QScrollBar::add-page,
+QScrollBar::sub-page {
+  background: transparent;
+}
+
+/* A quiet divider between the sidebar and the track list. */
+
+QSplitter::handle {
+  background-color: %palette-mid;
 }

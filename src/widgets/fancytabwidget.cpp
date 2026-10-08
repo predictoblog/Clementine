@@ -28,6 +28,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "core/appearance.h"
 #include "core/logging.h"
 #include "stylehelper.h"
 
@@ -130,49 +131,20 @@ class FancyTabBar : public QTabBar {
 
       QRect selectionRect = tabrect;
 
-      if (selected) {
-        // Selection highlight
+      // Selected and hovered tabs get a rounded fill in the palette's raised
+      // colour, inset from the sidebar's edges: flat, like a source list,
+      // rather than the old glossy bevel.
+      const QRect pill = selectionRect.adjusted(4, 2, -4, -2);
+      const bool hovered =
+          !selected && index == mouseHoverTabIndex && isTabEnabled(index);
+      if (selected || hovered) {
+        QColor fill = palette().color(QPalette::Button);
+        if (hovered) fill.setAlphaF(0.6);
         p.save();
-        QLinearGradient grad(selectionRect.topLeft(), selectionRect.topRight());
-        grad.setColorAt(0, QColor(255, 255, 255, 140));
-        grad.setColorAt(1, QColor(255, 255, 255, 210));
-        p.fillRect(selectionRect.adjusted(0, 0, 0, -1), grad);
-        p.restore();
-
-        // shadow lines
-        p.setPen(QColor(0, 0, 0, 110));
-        p.drawLine(selectionRect.topLeft() + QPoint(1, -1),
-                   selectionRect.topRight() - QPoint(0, 1));
-        p.drawLine(selectionRect.bottomLeft(), selectionRect.bottomRight());
-        p.setPen(QColor(0, 0, 0, 40));
-        p.drawLine(selectionRect.topLeft(), selectionRect.bottomLeft());
-
-        // highlights
-        p.setPen(QColor(255, 255, 255, 50));
-        p.drawLine(selectionRect.topLeft() + QPoint(0, -2),
-                   selectionRect.topRight() - QPoint(0, 2));
-        p.drawLine(selectionRect.bottomLeft() + QPoint(0, 1),
-                   selectionRect.bottomRight() + QPoint(0, 1));
-        p.setPen(QColor(255, 255, 255, 40));
-        p.drawLine(selectionRect.topLeft() + QPoint(0, 0),
-                   selectionRect.topRight());
-        p.drawLine(selectionRect.topRight() + QPoint(0, 1),
-                   selectionRect.bottomRight() - QPoint(0, 1));
-        p.drawLine(selectionRect.bottomLeft() + QPoint(0, -1),
-                   selectionRect.bottomRight() - QPoint(0, 1));
-      }
-
-      // Mouse hover effect
-      if (!selected && index == mouseHoverTabIndex && isTabEnabled(index)) {
-        p.save();
-        QLinearGradient grad(selectionRect.topLeft(), selectionRect.topRight());
-        grad.setColorAt(0, Qt::transparent);
-        grad.setColorAt(0.5, QColor(255, 255, 255, 40));
-        grad.setColorAt(1, Qt::transparent);
-        p.fillRect(selectionRect, grad);
-        p.setPen(QPen(grad, 1.0));
-        p.drawLine(selectionRect.topLeft(), selectionRect.topRight());
-        p.drawLine(selectionRect.bottomRight(), selectionRect.bottomLeft());
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(fill);
+        p.drawRoundedRect(pill, 6, 6);
         p.restore();
       }
 
@@ -209,20 +181,16 @@ class FancyTabBar : public QTabBar {
 
         p.setTransform(m);
 
-        QFont boldFont(p.font());
-        boldFont.setPointSizeF(Utils::StyleHelper::sidebarFontSize());
-        boldFont.setBold(true);
-        p.setFont(boldFont);
+        QFont font(p.font());
+        font.setPointSizeF(Utils::StyleHelper::sidebarFontSize());
+        font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
+        p.setFont(font);
 
-        // Text drop shadow color
-        p.setPen(selected ? QColor(255, 255, 255, 160) : QColor(0, 0, 0, 110));
-        p.translate(0, 3);
-        p.drawText(tabrectText, textFlags, tabText(index));
-
-        // Text foreground color
-        p.translate(0, -1);
-        p.setPen(selected ? QColor(60, 60, 60)
-                          : Utils::StyleHelper::panelTextColor());
+        // The selected tab takes the accent colour; the icon below is drawn
+        // with the same pen, so a monochrome icon follows the text.
+        p.translate(0, 2);
+        p.setPen(selected ? Appearance::AccentColor(palette())
+                          : palette().color(QPalette::WindowText));
         p.drawText(tabrectText, textFlags, tabText(index));
 
         // Draw the icon
@@ -353,45 +321,14 @@ void FancyTabWidget::paintEvent(QPaintEvent* pe) {
   }
   QStylePainter p(this);
 
-  // The brown color (Ubuntu) you see on the background gradient
-  QColor baseColor = StyleHelper::baseColor();
-
+  // A flat panel in the palette's window colour, with a hairline on the
+  // edge it shares with the content.
   QRect backgroundRect = rect();
   backgroundRect.setWidth(((FancyTabBar*)tabBar())->width());
-  p.fillRect(backgroundRect, baseColor);
+  p.fillRect(backgroundRect, palette().color(QPalette::Window));
 
-  // Horizontal gradient over the sidebar from transparent to dark
-  Utils::StyleHelper::verticalGradient(&p, backgroundRect, backgroundRect,
-                                       false);
-
-  // Draw the translucent png graphics over the gradient fill
-  {
-    if (!background_pixmap_.isNull()) {
-      QRect pixmap_rect(background_pixmap_.rect());
-      pixmap_rect.moveTo(backgroundRect.topLeft());
-
-      while (pixmap_rect.top() < backgroundRect.bottom()) {
-        QRect source_rect(pixmap_rect.intersected(backgroundRect));
-        source_rect.moveTo(0, 0);
-        p.drawPixmap(pixmap_rect.topLeft(), background_pixmap_, source_rect);
-        pixmap_rect.moveTop(pixmap_rect.bottom() - 10);
-      }
-    }
-  }
-
-  // Shadow effect of the background
-  {
-    QColor light(255, 255, 255, 80);
-    p.setPen(light);
-    p.drawLine(backgroundRect.topRight() - QPoint(1, 0),
-               backgroundRect.bottomRight() - QPoint(1, 0));
-    QColor dark(0, 0, 0, 90);
-    p.setPen(dark);
-    p.drawLine(backgroundRect.topLeft(), backgroundRect.bottomLeft());
-
-    p.setPen(Utils::StyleHelper::borderColor());
-    p.drawLine(backgroundRect.topRight(), backgroundRect.bottomRight());
-  }
+  p.setPen(palette().color(QPalette::Mid));
+  p.drawLine(backgroundRect.topRight(), backgroundRect.bottomRight());
 }
 
 void FancyTabWidget::tabBarUpdateGeometry() { tabBar()->updateGeometry(); }

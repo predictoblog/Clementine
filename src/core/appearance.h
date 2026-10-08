@@ -67,6 +67,11 @@ class Appearance : public QObject {
   static QPalette DarkPalette();
   static QPalette LightPalette();
 
+  // The accent (Clementine orange) and the secondary text colour for the
+  // theme a palette belongs to, for widgets that paint themselves.
+  static QColor AccentColor(const QPalette& palette);
+  static QColor QuietTextColor(const QPalette& palette);
+
   static const char* kSettingsGroup;
   static const char* kUseCustomColorSet;
   static const char* kForegroundColor;
@@ -82,7 +87,7 @@ class Appearance : public QObject {
 
  private:
   // The unmodified palette for the current theme, before any custom colour
-  // set is layered on: the system palette for light, ours for dark.
+  // set is layered on: Clementine's own light or dark palette.
   QPalette BasePalette() const;
   void ApplyTheme();
   // Forces stylesheet-styled widgets to re-resolve against the new palette.

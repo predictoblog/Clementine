@@ -163,8 +163,6 @@ class PlaylistView : public QTreeView {
   void FadePreviousBackgroundImage(qreal value);
 
  private:
-  void ReloadBarPixmaps();
-  QList<QPixmap> LoadBarPixmap(const QString& filename);
   void UpdateCachedCurrentRowPixmap(QStyleOptionViewItem option,
                                     const QModelIndex& index);
 
@@ -236,12 +234,10 @@ class PlaylistView : public QTreeView {
   bool inhibit_autoscroll_;
   bool currently_autoscrolling_;
 
-  int row_height_;  // Used to invalidate the currenttrack_bar pixmaps
-  QList<QPixmap> currenttrack_bar_left_;
-  QList<QPixmap> currenttrack_bar_mid_;
-  QList<QPixmap> currenttrack_bar_right_;
   QPixmap currenttrack_play_;
   QPixmap currenttrack_pause_;
+  QIcon currenttrack_play_icon_;
+  QIcon currenttrack_pause_icon_;
 
   QRegion current_paint_region_;
   QPixmap cached_current_row_;

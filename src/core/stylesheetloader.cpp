@@ -58,6 +58,9 @@ void StyleSheetLoader::UpdateStyleSheet(QWidget* widget) {
                                                   .arg(alt.blue())
                                                   .arg(alt_alpha_percent));
 
+  // Before Text, which it ends with. The secondary text colour: column
+  // headers and scroll bar handles use it.
+  ReplaceColor(&contents, "PlaceholderText", p, QPalette::PlaceholderText);
   ReplaceColor(&contents, "Window", p, QPalette::Window);
   ReplaceColor(&contents, "Background", p, QPalette::Window);
   ReplaceColor(&contents, "WindowText", p, QPalette::WindowText);
