@@ -376,6 +376,10 @@ void PlaylistView::LoadGeometry() {
       header_->HideSection(Playlist::Column_PlayCount);
       header_->HideSection(Playlist::Column_SkipCount);
       header_->HideSection(Playlist::Column_LastPlayed);
+      // Plumbing most people don't need to see: they're one right-click on
+      // the header away.
+      header_->HideSection(Playlist::Column_BaseFilename);
+      header_->HideSection(Playlist::Column_Source);
 
       header_->moveSection(header_->visualIndex(Playlist::Column_Track), 0);
       setting_initial_header_layout_ = true;
@@ -387,7 +391,11 @@ void PlaylistView::LoadGeometry() {
   // New columns that we add are visible by default if the user has upgraded
   // Clementine.  Hide them again here
   const int state_version = settings.value("state_version", 0).toInt();
-  upgrading_from_version_ = state_version;
+  // A fresh header has nothing to upgrade: the defaults above already are
+  // the current version's, and treating it as version 0 would bring back
+  // the Source column hidden there (see ReloadSettings()).
+  upgrading_from_version_ =
+      setting_initial_header_layout_ ? kStateVersion : state_version;
 
   if (state_version < 1) {
     header_->HideSection(Playlist::Column_Rating);
@@ -1114,8 +1122,8 @@ void PlaylistView::ReloadSettings() {
   if (!glow_enabled_) StopGlowing();
 
   if (setting_initial_header_layout_) {
-    header_->SetColumnWidth(Playlist::Column_Length, 0.06);
-    header_->SetColumnWidth(Playlist::Column_Track, 0.05);
+    header_->SetColumnWidth(Playlist::Column_Length, 0.08);
+    header_->SetColumnWidth(Playlist::Column_Track, 0.07);
     setting_initial_header_layout_ = false;
   }
 
