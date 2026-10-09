@@ -142,7 +142,21 @@ else(FORCE_GIT_REVISION)
         OUTPUT_VARIABLE GIT_REV_LONG
         OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT ${GIT_INFO_RESULT} EQUAL 0)
-      message(SEND_ERROR "git describe failed with code ${GIT_INFO_RESULT}: ${GIT_REV}")
+      # A fork made without the release tags has nothing to describe from:
+      # build as the version above, at this commit, rather than not at all.
+      execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=9 HEAD
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+          RESULT_VARIABLE GIT_SHA_RESULT
+          OUTPUT_VARIABLE GIT_SHA_SHORT
+          OUTPUT_STRIP_TRAILING_WHITESPACE)
+      if(${GIT_SHA_RESULT} EQUAL 0)
+        set(GIT_REV "${CLEMENTINE_VERSION_MAJOR}.${CLEMENTINE_VERSION_MINOR}.${CLEMENTINE_VERSION_PATCH}-0-g${GIT_SHA_SHORT}")
+        set(GIT_REV_LONG "${GIT_REV}")
+        set(GIT_INFO_RESULT 0)
+        message(WARNING "git describe found no release tag; building as ${GIT_REV}")
+      else()
+        message(SEND_ERROR "git describe failed with code ${GIT_INFO_RESULT}: ${GIT_REV}")
+      endif()
     endif()
   endif()
 endif()
