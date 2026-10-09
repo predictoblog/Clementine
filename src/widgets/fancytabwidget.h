@@ -18,6 +18,7 @@
 #ifndef FANCYTABWIDGET_H
 #define FANCYTABWIDGET_H
 
+#include <QHash>
 #include <QSet>
 #include <QTabWidget>
 #include <QWidget>
@@ -50,6 +51,11 @@ class FancyTabWidget : public QTabWidget {
   // Shows the tab holding `page`, which can be the widget passed to addTab()
   // or anything inside it.
   void setCurrentPage(QWidget* page);
+
+  // A count or short word shown at the right of a row in the source list,
+  // in the accent: "3" beside Needs attention. Empty takes it away.
+  void setTabBadge(QWidget* page, const QString& badge);
+  QString tabBadge(int index) const;
 
   // A tab that comes and goes as the program runs, like one per open
   // playlist: left out of the saved order, which only the fixed tabs have.
@@ -107,6 +113,7 @@ class FancyTabWidget : public QTabWidget {
   Mode mode_;
   QWidget* bottom_widget_;
   QSet<QWidget*> sections_;
+  QHash<QWidget*, QString> badges_;  // keyed on the tab's own widget
 };
 
 }  // namespace Internal

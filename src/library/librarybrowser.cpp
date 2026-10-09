@@ -25,6 +25,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMap>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
@@ -147,6 +148,8 @@ QVariant SongTableModel::data(const QModelIndex& index, int role) const {
           return song.playcount() > 0 ? QVariant(song.playcount()) : QVariant();
         case Column_Length:
           return SongTime(song);
+        case Column_Missing:
+          return LibraryBrowser::MissingTags(song).join(", ");
       }
       break;
 
@@ -201,6 +204,8 @@ QVariant SongTableModel::headerData(int section, Qt::Orientation orientation,
       return tr("Plays");
     case Column_Length:
       return tr("Time");
+    case Column_Missing:
+      return tr("Missing");
   }
   return QVariant();
 }
@@ -381,7 +386,17 @@ LibraryBrowser::LibraryBrowser(Application* app, QWidget* parent)
       artists_(nullptr),
       albums_(nullptr),
       songs_model_(new SongTableModel(this)),
-      songs_summary_(nullptr) {
+      songs_summary_(nullptr),
+      attention_count_(0),
+      attention_albums_(new AlbumGridModel(app, this)),
+      attention_songs_(new SongTableModel(this)),
+      attention_summary_(nullptr),
+      attention_all_clear_(nullptr),
+      attention_albums_box_(nullptr),
+      attention_albums_label_(nullptr),
+      attention_songs_box_(nullptr),
+      attention_songs_label_(nullptr),
+      attention_table_(nullptr) {
   setObjectName("library_browser");
   setAttribute(Qt::WA_StyledBackground);
 
@@ -392,6 +407,7 @@ LibraryBrowser::LibraryBrowser(Application* app, QWidget* parent)
   pages_->addWidget(MakeAlbumsPage());
   pages_->addWidget(MakeAlbumPage());
   pages_->addWidget(MakeSongsPage());
+  pages_->addWidget(MakeAttentionPage());
 
   // Reload when the library changes, once things settle: a scan reports
   // songs in batches.
@@ -462,7 +478,17 @@ QWidget* LibraryBrowser::MakeAlbumsPage() {
   header->addWidget(sort_);
   layout->addLayout(header);
 
-  grid_ = new QListView(page);
+  grid_ = MakeAlbumGrid(grid_model_);
+  connect(grid_, SIGNAL(clicked(QModelIndex)),
+          SLOT(AlbumActivated(QModelIndex)));
+  connect(grid_, SIGNAL(activated(QModelIndex)),
+          SLOT(AlbumActivated(QModelIndex)));
+  layout->addWidget(grid_, 1);
+  return page;
+}
+
+QListView* LibraryBrowser::MakeAlbumGrid(AlbumGridModel* model) {
+  QListView* grid_ = new QListView(this);
   grid_->setObjectName("album_grid");
   grid_->setViewMode(QListView::IconMode);
   grid_->setResizeMode(QListView::Adjust);
@@ -474,15 +500,15 @@ QWidget* LibraryBrowser::MakeAlbumsPage() {
   grid_->setSelectionMode(QAbstractItemView::SingleSelection);
   grid_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
   grid_->verticalScrollBar()->setSingleStep(24);
-  grid_->setModel(grid_model_);
+  grid_->setModel(model);
   grid_->setItemDelegate(new AlbumGridDelegate(grid_));
   grid_->setCursor(Qt::PointingHandCursor);
-  connect(grid_, SIGNAL(clicked(QModelIndex)),
-          SLOT(AlbumActivated(QModelIndex)));
-  connect(grid_, SIGNAL(activated(QModelIndex)),
-          SLOT(AlbumActivated(QModelIndex)));
-  layout->addWidget(grid_, 1);
-  return page;
+  grid_->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(grid_, &QWidget::customContextMenuRequested, this,
+          [this, grid_, model](const QPoint& pos) {
+            ShowAlbumMenu(grid_, model, pos);
+          });
+  return grid_;
 }
 
 QWidget* LibraryBrowser::MakeAlbumPage() {
@@ -655,6 +681,13 @@ QTreeView* LibraryBrowser::MakeSongTable(SongTableModel* model) {
   header->resizeSection(SongTableModel::Column_Track, 44);
   header->resizeSection(SongTableModel::Column_Plays, 56);
   header->resizeSection(SongTableModel::Column_Length, 60);
+  table->setColumnHidden(SongTableModel::Column_Missing, true);
+
+  table->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(table, &QWidget::customContextMenuRequested, this,
+          [this, table, model](const QPoint& pos) {
+            ShowSongMenu(table, model, pos);
+          });
   return table;
 }
 
@@ -681,6 +714,217 @@ bool LibraryBrowser::ShowFirstAlbum() {
   if (grid_model_->albums().isEmpty()) return false;
   ShowAlbum(0);
   return true;
+}
+
+void LibraryBrowser::ShowAttention() {
+  pages_->setCurrentIndex(Page_Attention);
+}
+
+QStringList LibraryBrowser::MissingTags(const Song& song) {
+  QStringList missing;
+  if (song.title().isEmpty()) missing << tr("title");
+  if (song.artist().isEmpty() && song.albumartist().isEmpty()) {
+    missing << tr("artist");
+  }
+  if (song.album().isEmpty()) missing << tr("album");
+  if (song.track() <= 0) missing << tr("track");
+  if (song.year() <= 0) missing << tr("year");
+  return missing;
+}
+
+bool LibraryBrowser::HasCoverArt(const Song& song) {
+  return !song.art_automatic().isEmpty() || !song.art_manual().isEmpty();
+}
+
+void LibraryBrowser::ShowSongMenu(QTreeView* table, SongTableModel* model,
+                                  const QPoint& pos) {
+  // The selected songs, or the one under the pointer.
+  SongList songs;
+  for (const QModelIndex& index : table->selectionModel()->selectedRows()) {
+    songs << model->songs()[index.row()];
+  }
+  const QModelIndex under = table->indexAt(pos);
+  if (songs.isEmpty() && under.isValid()) songs << model->songs()[under.row()];
+  if (songs.isEmpty()) return;
+  const int start = under.isValid() ? under.row() : 0;
+
+  QMenu menu(this);
+  menu.addAction(IconLoader::Load("media-playback-start", IconLoader::Base),
+                 tr("Play"), this, [this, model, start, songs]() {
+                   if (songs.count() == 1) {
+                     emit PlaySongs(model->songs(), start, false);
+                   } else {
+                     emit PlaySongs(songs, 0, false);
+                   }
+                 });
+  menu.addAction(IconLoader::Load("list-add", IconLoader::Base),
+                 tr("Add to queue"), this,
+                 [this, songs]() { emit QueueSongs(songs); });
+  menu.addSeparator();
+  menu.addAction(IconLoader::Load("edit-rename", IconLoader::Base),
+                 tr("Edit info..."), this,
+                 [this, songs]() { emit EditSongs(songs); });
+  menu.addAction(IconLoader::Load("tools-wizard", IconLoader::Base),
+                 tr("Look up tags on MusicBrainz..."), this,
+                 [this, songs]() { emit FixTags(songs); });
+  menu.exec(table->viewport()->mapToGlobal(pos));
+}
+
+void LibraryBrowser::ShowAlbumMenu(QListView* grid, AlbumGridModel* model,
+                                   const QPoint& pos) {
+  const QModelIndex index = grid->indexAt(pos);
+  if (!index.isValid()) return;
+  const SongList songs = model->albums()[index.row()].songs;
+
+  QMenu menu(this);
+  menu.addAction(IconLoader::Load("media-playback-start", IconLoader::Base),
+                 tr("Play"), this,
+                 [this, songs]() { emit PlaySongs(songs, 0, false); });
+  menu.addAction(IconLoader::Load("media-playlist-shuffle", IconLoader::Base),
+                 tr("Shuffle"), this,
+                 [this, songs]() { emit PlaySongs(songs, 0, true); });
+  menu.addAction(IconLoader::Load("list-add", IconLoader::Base),
+                 tr("Add to queue"), this,
+                 [this, songs]() { emit QueueSongs(songs); });
+  menu.addSeparator();
+  menu.addAction(IconLoader::Load("edit-rename", IconLoader::Base),
+                 tr("Edit info..."), this,
+                 [this, songs]() { emit EditSongs(songs); });
+  menu.addAction(IconLoader::Load("tools-wizard", IconLoader::Base),
+                 tr("Look up tags on MusicBrainz..."), this,
+                 [this, songs]() { emit FixTags(songs); });
+  menu.exec(grid->viewport()->mapToGlobal(pos));
+}
+
+QWidget* LibraryBrowser::MakeAttentionPage() {
+  QWidget* page = new QWidget(this);
+  QVBoxLayout* layout = new QVBoxLayout(page);
+  layout->setContentsMargins(28, 22, 20, 0);
+  layout->setSpacing(14);
+
+  QLabel* title = new QLabel(tr("Needs attention"), page);
+  title->setProperty("page_title", true);
+  attention_summary_ = new QLabel(page);
+  attention_summary_->setForegroundRole(QPalette::PlaceholderText);
+  QVBoxLayout* heading = new QVBoxLayout;
+  heading->setSpacing(2);
+  heading->addWidget(title);
+  heading->addWidget(attention_summary_);
+  layout->addLayout(heading);
+
+  attention_all_clear_ = new QLabel(
+      tr("Everything's in order: every album has cover art, and every song "
+         "has a title, artist, album, track number and year."),
+      page);
+  attention_all_clear_->setWordWrap(true);
+  attention_all_clear_->setForegroundRole(QPalette::PlaceholderText);
+  layout->addWidget(attention_all_clear_);
+
+  // Albums without cover art, in a strip.
+  attention_albums_box_ = new QWidget(page);
+  QVBoxLayout* albums = new QVBoxLayout(attention_albums_box_);
+  albums->setContentsMargins(0, 0, 0, 0);
+  albums->setSpacing(8);
+  attention_albums_label_ = new QLabel(attention_albums_box_);
+  attention_albums_label_->setProperty("section_title", true);
+  QPushButton* find_covers =
+      MakeButton(tr("Find covers..."), "edit-find", false);
+  connect(find_covers, &QPushButton::clicked, this,
+          &LibraryBrowser::FindCovers);
+  QHBoxLayout* albums_header = new QHBoxLayout;
+  albums_header->addWidget(attention_albums_label_);
+  albums_header->addStretch();
+  albums_header->addWidget(find_covers);
+  albums->addLayout(albums_header);
+  QListView* strip = MakeAlbumGrid(attention_albums_);
+  strip->setFlow(QListView::LeftToRight);
+  strip->setWrapping(false);
+  strip->setFixedHeight(AlbumGridModel::kCoverSize +
+                        strip->fontMetrics().height() * 2 + 44);
+  albums->addWidget(strip);
+  layout->addWidget(attention_albums_box_);
+
+  // Songs missing tags.
+  attention_songs_box_ = new QWidget(page);
+  QVBoxLayout* songs = new QVBoxLayout(attention_songs_box_);
+  songs->setContentsMargins(0, 0, 0, 0);
+  songs->setSpacing(8);
+  attention_songs_label_ = new QLabel(attention_songs_box_);
+  attention_songs_label_->setProperty("section_title", true);
+  QPushButton* fix =
+      MakeButton(tr("Fix with MusicBrainz..."), "tools-wizard", true);
+  QPushButton* edit = MakeButton(tr("Edit info..."), "edit-rename", false);
+  QHBoxLayout* songs_header = new QHBoxLayout;
+  songs_header->setSpacing(10);
+  songs_header->addWidget(attention_songs_label_);
+  songs_header->addStretch();
+  songs_header->addWidget(fix);
+  songs_header->addWidget(edit);
+  songs->addLayout(songs_header);
+  attention_table_ = MakeSongTable(attention_songs_);
+  attention_table_->setColumnHidden(SongTableModel::Column_Missing, false);
+  attention_table_->setColumnHidden(SongTableModel::Column_Plays, true);
+  attention_table_->header()->setSectionResizeMode(
+      SongTableModel::Column_Missing, QHeaderView::Stretch);
+  connect(attention_table_, &QTreeView::activated, this,
+          [this](const QModelIndex& i) {
+            emit EditSongs(SongList() << attention_songs_->songs()[i.row()]);
+          });
+  songs->addWidget(attention_table_, 1);
+  layout->addWidget(attention_songs_box_, 1);
+
+  // Both act on the selected songs, or all of them if none are.
+  auto chosen = [this]() {
+    SongList songs;
+    for (const QModelIndex& index :
+         attention_table_->selectionModel()->selectedRows()) {
+      songs << attention_songs_->songs()[index.row()];
+    }
+    return songs.isEmpty() ? attention_songs_->songs() : songs;
+  };
+  connect(fix, &QPushButton::clicked, this,
+          [this, chosen]() { emit FixTags(chosen()); });
+  connect(edit, &QPushButton::clicked, this,
+          [this, chosen]() { emit EditSongs(chosen()); });
+
+  layout->addStretch(0);
+  return page;
+}
+
+void LibraryBrowser::UpdateAttention() {
+  QList<BrowserAlbum> without_art;
+  for (const BrowserAlbum& album : grid_model_->albums()) {
+    bool has_art = false;
+    for (const Song& song : album.songs) has_art = has_art || HasCoverArt(song);
+    if (!has_art) without_art << album;
+  }
+  SongList untagged;
+  for (const Song& song : songs_) {
+    if (!MissingTags(song).isEmpty()) untagged << song;
+  }
+
+  attention_albums_->SetAlbums(without_art);
+  attention_songs_->SetSongs(untagged);
+
+  attention_albums_box_->setVisible(!without_art.isEmpty());
+  attention_albums_label_->setText(Count(without_art.count(),
+                                         tr("%1 album without cover art"),
+                                         tr("%1 albums without cover art")));
+  attention_songs_box_->setVisible(!untagged.isEmpty());
+  attention_songs_label_->setText(Count(untagged.count(),
+                                        tr("%1 song with missing tags"),
+                                        tr("%1 songs with missing tags")));
+
+  const int count = without_art.count() + untagged.count();
+  attention_all_clear_->setVisible(count == 0);
+  attention_summary_->setText(
+      count == 0 ? tr("Nothing to fix")
+                 : tr("Fix these and your library looks and sorts the way it "
+                      "should"));
+  if (count != attention_count_) {
+    attention_count_ = count;
+    emit AttentionCountChanged(count);
+  }
 }
 
 void LibraryBrowser::AlbumActivated(const QModelIndex& index) {
@@ -782,6 +1026,7 @@ void LibraryBrowser::Loaded() {
     }
   }
   if (!found && pages_->currentIndex() == Page_Album) ShowAlbums();
+  UpdateAttention();
 
   QSet<QString> artists;
   for (const BrowserAlbum& album : albums) artists << album.artist;

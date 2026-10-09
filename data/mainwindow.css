@@ -269,3 +269,8 @@ QPushButton[link="true"]:hover {
   font-size: 22px;
   font-weight: 700;
 }
+
+#library_browser QLabel[section_title="true"] {
+  font-size: 16px;
+  font-weight: 700;
+}

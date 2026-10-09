@@ -201,6 +201,7 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
       now_playing_source_(new QWidget(this)),
       albums_source_(new QWidget(this)),
       songs_source_(new QWidget(this)),
+      attention_source_(new QWidget(this)),
       side_column_width_(260),
       panel_width_(280),
       now_playing_panel_(nullptr),
@@ -305,6 +306,9 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   ui_->tabs->addTab(songs_source_,
                     IconLoader::Load("folder-sound", IconLoader::Base),
                     tr("Songs"));
+  ui_->tabs->addTab(attention_source_,
+                    IconLoader::Load("dialog-warning", IconLoader::Base),
+                    tr("Needs attention"));
   // The classic library tree, beside the playlist: for building a playlist
   // by hand, dragging songs across.
   ui_->tabs->addTab(library_view_,
@@ -2609,6 +2613,33 @@ void MainWindow::SetUpLayout() {
           &MainWindow::PlayFromBrowser);
   connect(library_browser_, &LibraryBrowser::QueueSongs, this,
           &MainWindow::QueueFromBrowser);
+  connect(library_browser_, &LibraryBrowser::EditSongs, this,
+          [this](const SongList& songs) {
+            SongList editable;
+            for (const Song& song : songs) {
+              if (song.IsEditable()) editable << song;
+            }
+            if (editable.isEmpty()) return;
+            edit_tag_dialog_->SetSongs(editable);
+            edit_tag_dialog_->show();
+          });
+  connect(library_browser_, &LibraryBrowser::FixTags, this,
+          [this](const SongList& songs) {
+            autocomplete_tag_items_.clear();
+            SongList editable;
+            for (const Song& song : songs) {
+              if (song.IsEditable()) editable << song;
+            }
+            AutoCompleteTagsFor(editable);
+          });
+  connect(library_browser_, &LibraryBrowser::FindCovers, this,
+          &MainWindow::ShowCoverManager);
+  connect(library_browser_, &LibraryBrowser::AttentionCountChanged, this,
+          [this](int count) {
+            ui_->tabs->setTabBadge(
+                attention_source_,
+                count > 0 ? QString::number(count) : QString());
+          });
 
   // The Now playing panel on the right, with the cover that used to sit at
   // the bottom of the sidebar.
@@ -2635,10 +2666,13 @@ void MainWindow::SourceChanged() {
     return wrapper && (wrapper == page || wrapper->isAncestorOf(page));
   };
 
-  if (is(albums_source_) || is(songs_source_)) {
-    if (is(songs_source_)) {
+  if (is(albums_source_) || is(songs_source_) || is(attention_source_)) {
+    if (is(attention_source_)) {
+      library_browser_->ShowAttention();
+    } else if (is(songs_source_)) {
       library_browser_->ShowSongs();
-    } else if (library_browser_->page() == LibraryBrowser::Page_Songs) {
+    } else if (library_browser_->page() == LibraryBrowser::Page_Songs ||
+               library_browser_->page() == LibraryBrowser::Page_Attention) {
       library_browser_->ShowAlbums();
     }
     centre_stack_->setCurrentWidget(library_browser_);
@@ -3372,6 +3406,27 @@ void MainWindow::Exit() {
 }
 
 void MainWindow::AutoCompleteTags() {
+  // Get the selected songs and start fetching tags for them
+  SongList songs;
+  autocomplete_tag_items_.clear();
+  for (const QModelIndex& index :
+       ui_->playlist->view()->selectionModel()->selection().indexes()) {
+    if (index.column() != 0) continue;
+    int row =
+        app_->playlist_manager()->current()->proxy()->mapToSource(index).row();
+    PlaylistItemPtr item(app_->playlist_manager()->current()->item_at(row));
+    Song song = item->Metadata();
+
+    if (song.IsEditable()) {
+      songs << song;
+      autocomplete_tag_items_ << item;
+    }
+  }
+  AutoCompleteTagsFor(songs);
+}
+
+void MainWindow::AutoCompleteTagsFor(const SongList& songs) {
+  if (songs.isEmpty()) return;
   // Create the tag fetching stuff if it hasn't been already
   if (!tag_fetcher_) {
     tag_fetcher_.reset(new TagFetcher);
@@ -3390,23 +3445,6 @@ void MainWindow::AutoCompleteTags() {
             tag_fetcher_.get(), SLOT(Cancel()));
     connect(track_selection_dialog_.get(), SIGNAL(Error(QString)),
             SLOT(ShowErrorDialog(QString)));
-  }
-
-  // Get the selected songs and start fetching tags for them
-  SongList songs;
-  autocomplete_tag_items_.clear();
-  for (const QModelIndex& index :
-       ui_->playlist->view()->selectionModel()->selection().indexes()) {
-    if (index.column() != 0) continue;
-    int row =
-        app_->playlist_manager()->current()->proxy()->mapToSource(index).row();
-    PlaylistItemPtr item(app_->playlist_manager()->current()->item_at(row));
-    Song song = item->Metadata();
-
-    if (song.IsEditable()) {
-      songs << song;
-      autocomplete_tag_items_ << item;
-    }
   }
 
   track_selection_dialog_->Init(songs);

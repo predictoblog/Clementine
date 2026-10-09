@@ -65,6 +65,7 @@ class SongTableModel : public QAbstractTableModel {
     Column_Album,
     Column_Plays,
     Column_Length,
+    Column_Missing,  // which tags a song lacks, for Needs attention
     ColumnCount
   };
 
@@ -139,12 +140,20 @@ class LibraryBrowser : public QWidget {
   Q_OBJECT
 
  public:
-  enum Page { Page_Albums = 0, Page_Album, Page_Songs };
+  enum Page { Page_Albums = 0, Page_Album, Page_Songs, Page_Attention };
 
   LibraryBrowser(Application* app, QWidget* parent = nullptr);
 
   void ShowAlbums();
   void ShowSongs();
+  // What's missing: albums without cover art, songs without their tags.
+  void ShowAttention();
+  int attention_count() const { return attention_count_; }
+
+  // The tags a song should have and doesn't: title, artist, album, track,
+  // year - the ones a MusicBrainz lookup can fill in.
+  static QStringList MissingTags(const Song& song);
+  static bool HasCoverArt(const Song& song);
   // The album page for the first album with this title, if there is one.
   bool ShowAlbum(const QString& title);
   // The album page for the first album in the grid; false if there's none.
@@ -157,6 +166,14 @@ class LibraryBrowser : public QWidget {
   void PlaySongs(const SongList& songs, int start, bool shuffle);
   // Add `songs` to the queue, after whatever is queued already.
   void QueueSongs(const SongList& songs);
+  // Open the tag editor on these songs.
+  void EditSongs(const SongList& songs);
+  // Look these songs up on MusicBrainz.
+  void FixTags(const SongList& songs);
+  // Open the cover manager.
+  void FindCovers();
+  // How many albums and songs Needs attention lists.
+  void AttentionCountChanged(int count);
 
  private slots:
   void Reload();
@@ -182,6 +199,11 @@ class LibraryBrowser : public QWidget {
   QWidget* MakeAlbumPage();
   QWidget* MakeSongsPage();
   QTreeView* MakeSongTable(SongTableModel* model);
+  QWidget* MakeAttentionPage();
+  QListView* MakeAlbumGrid(AlbumGridModel* model);
+  void UpdateAttention();
+  void ShowSongMenu(QTreeView* table, SongTableModel* model, const QPoint& pos);
+  void ShowAlbumMenu(QListView* grid, AlbumGridModel* model, const QPoint& pos);
   QPushButton* MakeButton(const QString& text, const QString& icon,
                           bool primary);
   void ShowAlbum(int row);
@@ -219,6 +241,18 @@ class LibraryBrowser : public QWidget {
   QListWidget* albums_;
   SongTableModel* songs_model_;
   QLabel* songs_summary_;
+
+  // Needs attention
+  int attention_count_;
+  AlbumGridModel* attention_albums_;
+  SongTableModel* attention_songs_;
+  QLabel* attention_summary_;
+  QLabel* attention_all_clear_;
+  QWidget* attention_albums_box_;
+  QLabel* attention_albums_label_;
+  QWidget* attention_songs_box_;
+  QLabel* attention_songs_label_;
+  QTreeView* attention_table_;
 };
 
 #endif  // LIBRARY_LIBRARYBROWSER_H

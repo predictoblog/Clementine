@@ -300,8 +300,30 @@ class FancyTabBar : public QTabBar {
           kSourceListIconSize, kSourceListIconSize);
       tabIcon(index).paint(&p, icon_rect);
 
-      const QRect text_rect =
-          rect.adjusted(16 + kSourceListIconSize + 10, 0, -12, 0);
+      QRect text_rect = rect.adjusted(16 + kSourceListIconSize + 10, 0, -12, 0);
+
+      // A badge at the right: a pill in the accent with the count on it.
+      const QString badge = tabWidget->tabBadge(index);
+      if (!badge.isEmpty()) {
+        QFont badge_font(this->font());
+        badge_font.setPointSizeF(badge_font.pointSizeF() * 0.8);
+        badge_font.setWeight(QFont::Bold);
+        const QFontMetrics metrics(badge_font);
+        const int height = metrics.height() + 2;
+        const int width = qMax(height, metrics.horizontalAdvance(badge) + 10);
+        const QRect pill(rect.right() - 16 - width,
+                         rect.top() + (rect.height() - height) / 2, width,
+                         height);
+        p.save();
+        p.setPen(Qt::NoPen);
+        p.setBrush(accent);
+        p.drawRoundedRect(pill, height / 2.0, height / 2.0);
+        p.setFont(badge_font);
+        p.setPen(palette().color(QPalette::Base));
+        p.drawText(pill, Qt::AlignCenter, badge);
+        p.restore();
+        text_rect.setRight(pill.left() - 6);
+      }
       p.drawText(text_rect, Qt::AlignLeft | Qt::AlignVCenter,
                  QFontMetrics(font).elidedText(label, Qt::ElideRight,
                                                text_rect.width()));
@@ -337,6 +359,25 @@ void FancyTabWidget::setCurrentPage(QWidget* page) {
       return;
     }
   }
+}
+
+void FancyTabWidget::setTabBadge(QWidget* page, const QString& badge) {
+  for (int i = 0; i < count(); ++i) {
+    QWidget* wrapper = widget(i);
+    if (wrapper == page || wrapper->isAncestorOf(page)) {
+      if (badge.isEmpty()) {
+        badges_.remove(wrapper);
+      } else {
+        badges_[wrapper] = badge;
+      }
+      tabBar()->update();
+      return;
+    }
+  }
+}
+
+QString FancyTabWidget::tabBadge(int index) const {
+  return badges_.value(widget(index));
 }
 
 void FancyTabWidget::setBackgroundPixmap(const QPixmap& pixmap) {

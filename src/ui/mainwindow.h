@@ -318,6 +318,8 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   void SourceChanged();
   void SetSideColumnVisible(bool visible);
   void PlayFromBrowser(const SongList& songs, int start, bool shuffle);
+  // Looks these songs up on MusicBrainz and offers what it finds.
+  void AutoCompleteTagsFor(const SongList& songs);
   // The source list's row for each open playlist.
   void AddPlaylistSource(int id, const QString& name);
   void RemovePlaylistSource(int id);
@@ -372,6 +374,7 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   QWidget* now_playing_source_;
   QWidget* albums_source_;
   QWidget* songs_source_;
+  QWidget* attention_source_;
   int side_column_width_;
   int panel_width_;
   NowPlayingPanel* now_playing_panel_;
