@@ -44,7 +44,7 @@ static const int kSourceListRowHeight = 32;
 // Where the tabs' order is saved. Renamed when the source list added
 // sections and moved Song info and Artist info out, so an order saved for the
 // old set of tabs isn't applied to the new one.
-static const char* kTabOrderKey = "tab_order2_";
+static const char* kTabOrderKey = "tab_order3_";
 static const int kSourceListSectionHeight = 34;
 static const int kSourceListSpacerHeight = 10;
 static const int kSourceListIconSize = 18;

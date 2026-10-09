@@ -160,3 +160,100 @@ QToolButton[sequence="true"]:checked {
   background-color: %palette-light;
   color: %palette-text;
 }
+
+/* The library's browsing pages: albums, an album, songs. */
+
+#library_browser,
+#library_browser QWidget#album_grid,
+#library_browser QTreeView,
+#library_browser QListWidget {
+  background-color: %palette-base;
+}
+
+#library_browser QLabel[page_title="true"] {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+#library_browser QLabel[album_title="true"] {
+  font-size: 36px;
+  font-weight: 800;
+}
+
+#library_browser QLabel[caption="true"] {
+  font-size: 11px;
+  font-weight: 600;
+  color: %palette-placeholdertext;
+  text-transform: uppercase;
+}
+
+#library_browser QLabel[column_heading="true"] {
+  font-size: 11px;
+  font-weight: 600;
+  color: %palette-placeholdertext;
+  background-color: %palette-window;
+  padding: 6px 10px;
+}
+
+#column_browser {
+  border: 1px solid %palette-mid;
+  border-radius: 8px;
+}
+
+#column_browser QListWidget::item {
+  padding: 3px 8px;
+}
+
+#column_browser QListWidget::item:selected {
+  background-color: %palette-highlight;
+  color: %palette-link;
+}
+
+#browser_songs::item {
+  padding: 4px 2px;
+}
+
+#browser_songs::item:hover {
+  background-color: %palette-alternate-base;
+}
+
+/* Pill buttons: Play in the accent, the rest quiet. */
+
+QPushButton[primary="true"],
+QPushButton[pill="true"] {
+  border: none;
+  border-radius: 14px;
+  min-height: 28px;
+  padding: 0px 18px;
+  font-weight: 600;
+}
+
+QPushButton[primary="true"] {
+  background-color: %palette-link;
+  color: %palette-base;
+}
+
+QPushButton[primary="true"]:hover {
+  background-color: %palette-link-lighter;
+}
+
+QPushButton[pill="true"] {
+  background-color: %palette-button;
+  color: %palette-text;
+}
+
+QPushButton[pill="true"]:hover {
+  background-color: %palette-mid;
+}
+
+QPushButton[link="true"] {
+  border: none;
+  background: transparent;
+  color: %palette-placeholdertext;
+  padding: 2px 0px;
+  text-align: left;
+}
+
+QPushButton[link="true"]:hover {
+  color: %palette-text;
+}

@@ -59,6 +59,7 @@ class GlobalSearchView;
 class GlobalShortcuts;
 class GroupByDialog;
 class Library;
+class LibraryBrowser;
 class LibraryViewContainer;
 class MimeData;
 class MultiLoadingIndicator;
@@ -89,6 +90,7 @@ class Windows7ThumbBar;
 class Ui_MainWindow;
 
 class QSortFilterProxyModel;
+class QStackedWidget;
 
 class MainWindow : public QMainWindow, public PlatformInterface {
   Q_OBJECT
@@ -307,6 +309,13 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   // of the source list to show.
   void SetUpViewMenu();
   void SetNowPlayingPanelVisible(bool visible);
+  // Shows what the source list's current entry calls for: a browsing page
+  // in the middle with the sidebar's own column folded away, or the
+  // playlist in the middle with the source's column beside it.
+  void SourceChanged();
+  void SetSideColumnVisible(bool visible);
+  void PlayFromBrowser(const SongList& songs, int start, bool shuffle);
+  void QueueFromBrowser(const SongList& songs);
 
   void ConnectInfoView(SongInfoBase* view);
 
@@ -347,6 +356,15 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   ArtistInfoView* artist_info_view_;
 
   PlayerBar* player_bar_;
+  QStackedWidget* centre_stack_;
+  LibraryBrowser* library_browser_;
+  // Empty pages standing for the entries that fill the middle of the window
+  // rather than the sidebar's column.
+  QWidget* now_playing_source_;
+  QWidget* albums_source_;
+  QWidget* songs_source_;
+  int side_column_width_;
+  int panel_width_;
   NowPlayingPanel* now_playing_panel_;
   QAction* action_show_now_playing_panel_;
 

@@ -28,9 +28,11 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
+#include <QRandomGenerator>
 #include <QSettings>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTimer>
@@ -79,6 +81,7 @@
 #include "library/groupbydialog.h"
 #include "library/library.h"
 #include "library/librarybackend.h"
+#include "library/librarybrowser.h"
 #include "library/librarydirectorymodel.h"
 #include "library/libraryfilterwidget.h"
 #include "library/libraryviewcontainer.h"
@@ -92,6 +95,7 @@
 #include "playlist/playlistview.h"
 #include "playlist/queue.h"
 #include "playlist/queuemanager.h"
+#include "playlist/songmimedata.h"
 #include "playlist/songplaylistitem.h"
 #include "playlistparsers/playlistparser.h"
 #include "ui_mainwindow.h"
@@ -152,6 +156,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #ifdef Q_OS_DARWIN
 // Non exported mac-specific function.
@@ -189,6 +194,13 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
       song_info_view_(new SongInfoView(this)),
       artist_info_view_(new ArtistInfoView(this)),
       player_bar_(nullptr),
+      centre_stack_(nullptr),
+      library_browser_(nullptr),
+      now_playing_source_(new QWidget(this)),
+      albums_source_(new QWidget(this)),
+      songs_source_(new QWidget(this)),
+      side_column_width_(260),
+      panel_width_(280),
       now_playing_panel_(nullptr),
       action_show_now_playing_panel_(nullptr),
       settings_dialog_(std::bind(&MainWindow::CreateSettingsDialog, this)),
@@ -278,12 +290,23 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   ui_->tabs->addTab(global_search_view_,
                     IconLoader::Load("search", IconLoader::Base),
                     tr("Search", "Global search settings dialog title."));
+  ui_->tabs->addTab(now_playing_source_,
+                    IconLoader::Load("view-media-playlist", IconLoader::Base),
+                    tr("Now playing"));
   ui_->tabs->addSection(tr("Library"));
-  ui_->tabs->addTab(library_view_,
+  ui_->tabs->addTab(albums_source_,
+                    IconLoader::Load("x-clementine-album", IconLoader::Base),
+                    tr("Albums"));
+  ui_->tabs->addTab(songs_source_,
                     IconLoader::Load("folder-sound", IconLoader::Base),
+                    tr("Songs"));
+  // The classic library tree, beside the playlist: for building a playlist
+  // by hand, dragging songs across.
+  ui_->tabs->addTab(library_view_,
+                    IconLoader::Load("view-choose", IconLoader::Base),
                     tr("Library"));
   ui_->tabs->addTab(playlist_list_,
-                    IconLoader::Load("view-media-playlist", IconLoader::Base),
+                    IconLoader::Load("document-open", IconLoader::Base),
                     tr("Playlists"));
   ui_->tabs->addTab(file_view_, IconLoader::Load("folder", IconLoader::Base),
                     tr("Files"));
@@ -1018,16 +1041,27 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
     ui_->splitter->setSizes(QList<int>()
                             << sidebar << width() - sidebar - panel << panel);
   }
-  const int current_tab = settings_.value("current_tab2", -1).toInt();
+
+  FancyTabWidget::Mode default_mode = FancyTabWidget::Mode_SourceList;
+  ui_->tabs->SetMode(
+      FancyTabWidget::Mode(settings_.value("tab_mode2", default_mode).toInt()));
+
+  // After the sidebar's style, which decides how wide the source list is.
+  side_column_width_ =
+      settings_.value("side_column_width", side_column_width_).toInt();
+  connect(ui_->tabs, &FancyTabWidget::CurrentChanged, this,
+          &MainWindow::SourceChanged);
+  // Another sidebar style is another width for the source list.
+  connect(ui_->tabs, &FancyTabWidget::ModeChanged, this,
+          [this]() { SourceChanged(); });
+  const int current_tab = settings_.value("current_tab3", -1).toInt();
   if (current_tab >= 0 && current_tab < ui_->tabs->count() &&
       ui_->tabs->isTabEnabled(current_tab)) {
     ui_->tabs->setCurrentIndex(current_tab);
   } else {
-    ui_->tabs->setCurrentPage(library_view_);
+    ui_->tabs->setCurrentPage(albums_source_);
   }
-  FancyTabWidget::Mode default_mode = FancyTabWidget::Mode_SourceList;
-  ui_->tabs->SetMode(
-      FancyTabWidget::Mode(settings_.value("tab_mode2", default_mode).toInt()));
+  SourceChanged();
 
   const bool show_panel =
       settings_.value("show_now_playing_panel", true).toBool();
@@ -1368,7 +1402,7 @@ void MainWindow::SaveGeometry(QSettings* settings) {
     settings->setValue("geometry", saveGeometry());
   }
   settings->setValue("splitter_state2", ui_->splitter->saveState());
-  settings->setValue("current_tab2", ui_->tabs->currentIndex());
+  settings->setValue("current_tab3", ui_->tabs->currentIndex());
   settings->setValue("tab_mode2", ui_->tabs->mode());
 
   // Leaving this here for now
@@ -2501,6 +2535,17 @@ void MainWindow::SetUpLayout() {
   ui_->player_controls_container->hide();
   ui_->line_6->hide();
 
+  // The middle of the window: the playlist, or the library's browsing pages.
+  centre_stack_ = new QStackedWidget(this);
+  ui_->splitter->insertWidget(1, centre_stack_);
+  centre_stack_->addWidget(ui_->playlist_layout);
+  library_browser_ = new LibraryBrowser(app_, this);
+  centre_stack_->addWidget(library_browser_);
+  connect(library_browser_, &LibraryBrowser::PlaySongs, this,
+          &MainWindow::PlayFromBrowser);
+  connect(library_browser_, &LibraryBrowser::QueueSongs, this,
+          &MainWindow::QueueFromBrowser);
+
   // The Now playing panel on the right, with the cover that used to sit at
   // the bottom of the sidebar.
   now_playing_panel_ = new NowPlayingPanel(this);
@@ -2516,6 +2561,124 @@ void MainWindow::SetUpLayout() {
           [this]() { action_show_now_playing_panel_->setChecked(false); });
   connect(player_bar_, &PlayerBar::NowPlayingClicked, this,
           [this]() { action_show_now_playing_panel_->setChecked(true); });
+}
+
+void MainWindow::SourceChanged() {
+  QWidget* wrapper = ui_->tabs->currentWidget();
+  auto is = [wrapper](QWidget* page) {
+    return wrapper && (wrapper == page || wrapper->isAncestorOf(page));
+  };
+
+  if (is(albums_source_) || is(songs_source_)) {
+    if (is(songs_source_)) {
+      library_browser_->ShowSongs();
+    } else if (library_browser_->page() == LibraryBrowser::Page_Songs) {
+      library_browser_->ShowAlbums();
+    }
+    centre_stack_->setCurrentWidget(library_browser_);
+    SetSideColumnVisible(false);
+  } else {
+    centre_stack_->setCurrentWidget(ui_->playlist_layout);
+    SetSideColumnVisible(!is(now_playing_source_));
+  }
+}
+
+void MainWindow::SetSideColumnVisible(bool visible) {
+  // The tab widget's own page area; the source list itself stays.
+  QStackedWidget* column = ui_->tabs->findChild<QStackedWidget*>(
+      QString(), Qt::FindDirectChildrenOnly);
+  if (!column) return;
+  const bool was_visible = !column->isHidden();
+
+  const int rail = ui_->tabs->tabBar()->sizeHint().width() + 1;
+  QList<int> sizes = ui_->splitter->sizes();
+  const bool laid_out = sizes.count() > 1 && sizes[0] > 0;
+
+  if (!visible) {
+    // Remember how wide the column was, to give it back.
+    if (was_visible && laid_out && sizes[0] > rail + 40) {
+      side_column_width_ = sizes[0] - rail;
+      settings_.setValue("side_column_width", side_column_width_);
+    }
+    if (laid_out && sizes.count() > 2 && sizes[2] > 0) {
+      panel_width_ = sizes[2];
+    }
+    column->hide();
+    // Pinned to the source list's width, so the splitter can't leave an
+    // empty column beside it, before the window is shown or after.
+    ui_->sidebar_layout->setMaximumWidth(rail);
+    if (laid_out && sizes[0] != rail) {
+      sizes[1] += sizes[0] - rail;
+      sizes[0] = rail;
+      ui_->splitter->setSizes(sizes);
+    }
+  } else {
+    column->show();
+    ui_->sidebar_layout->setMaximumWidth(QWIDGETSIZE_MAX);
+    if (!was_visible && laid_out) {
+      // Once the column's back in the layout, give it its width back, out
+      // of the middle's.
+      QTimer::singleShot(0, this, [this, rail]() {
+        QList<int> sizes = ui_->splitter->sizes();
+        int total = 0;
+        for (int size : sizes) total += size;
+        sizes[0] = rail + side_column_width_;
+        // The panel as it was, rather than whatever it was given meanwhile.
+        if (sizes.count() > 2 && sizes[2] > 0) sizes[2] = panel_width_;
+        sizes[1] =
+            qMax(200, total - sizes[0] - (sizes.count() > 2 ? sizes[2] : 0));
+        ui_->splitter->setSizes(sizes);
+      });
+    }
+  }
+}
+
+void MainWindow::PlayFromBrowser(const SongList& songs, int start,
+                                 bool shuffle) {
+  if (songs.isEmpty()) return;
+  SongList list = songs;
+  if (shuffle) {
+    std::shuffle(list.begin(), list.end(),
+                 std::mt19937(QRandomGenerator::global()->generate()));
+    start = 0;
+  }
+
+  // Browsing plays into a playlist of its own, so it never replaces one
+  // you've built by hand.
+  PlaylistManager* manager = app_->playlist_manager();
+  int id = settings_.value("browse_playlist_id", -1).toInt();
+  bool exists = false;
+  for (Playlist* playlist : manager->GetAllPlaylists()) {
+    exists = exists || playlist->id() == id;
+  }
+  if (!exists) {
+    id = manager->New(tr("Library"));
+    settings_.setValue("browse_playlist_id", id);
+  }
+  manager->SetCurrentPlaylist(id);
+  manager->SetActivePlaylist(id);
+
+  SongMimeData* data = new SongMimeData;
+  data->backend = app_->library_backend();
+  data->songs = list;
+  data->override_user_settings_ = true;
+  data->clear_first_ = true;
+  data->playlist_id = id;
+  AddToPlaylist(data);
+
+  app_->player()->PlayAt(qBound(0, start, list.count() - 1), Engine::Manual,
+                         true);
+}
+
+void MainWindow::QueueFromBrowser(const SongList& songs) {
+  if (songs.isEmpty()) return;
+  SongMimeData* data = new SongMimeData;
+  data->backend = app_->library_backend();
+  data->songs = songs;
+  data->override_user_settings_ = true;
+  data->enqueue_now_ = true;
+  data->playlist_id = app_->playlist_manager()->active_id();
+  AddToPlaylist(data);
 }
 
 void MainWindow::SetNowPlayingPanelVisible(bool visible) {

@@ -227,6 +227,7 @@ set(SOURCES
 
   library/groupbydialog.cpp
   library/library.cpp
+  library/librarybrowser.cpp
   library/librarybackend.cpp
   library/librarydirectorymodel.cpp
   library/libraryfilterwidget.cpp
@@ -576,6 +577,7 @@ set(HEADERS
 
   library/groupbydialog.h
   library/library.h
+  library/librarybrowser.h
   library/librarybackend.h
   library/librarydirectorymodel.h
   library/libraryfilterwidget.h

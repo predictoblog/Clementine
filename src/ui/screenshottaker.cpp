@@ -45,6 +45,7 @@
 #include "core/timeconstants.h"
 #include "library/directory.h"
 #include "library/librarybackend.h"
+#include "library/librarybrowser.h"
 #include "playlist/playlist.h"
 #include "playlist/playlistmanager.h"
 #include "ui/mainwindow.h"
@@ -265,19 +266,32 @@ void ScreenshotTaker::TakeMainWindow(const QString& prefix) {
 
   int n = 0;
   int library_tab = 0;
+  LibraryBrowser* browser = window_->findChild<LibraryBrowser*>();
   for (int i = 0; i < tabs->count(); ++i) {
     // Spacers and the source list's section captions aren't pages.
     if (!tabs->isTabVisible(i) || !tabs->isTabEnabled(i) ||
         tabs->tabText(i).isEmpty()) {
       continue;
     }
-    if (n == 1) library_tab = i;  // the second page: Library
     tabs->setCurrentIndex(i);
     Wait(kPaintDelayMsec);
     Save(window_, QString("%1main-%2-%3")
                       .arg(prefix)
                       .arg(++n, 2, 10, QChar('0'))
                       .arg(Slug(tabs->tabText(i))));
+
+    // The album grid's tab: also an album's own page, opened from it.
+    if (browser && browser->isVisible() &&
+        browser->page() == LibraryBrowser::Page_Albums) {
+      library_tab = i;
+      if (browser->ShowFirstAlbum()) {
+        Wait(kPaintDelayMsec);
+        Save(
+            window_,
+            QString("%1main-%2-album").arg(prefix).arg(++n, 2, 10, QChar('0')));
+        browser->ShowAlbums();
+      }
+    }
   }
 
   // Each tab of the Now playing panel, beside the library.
