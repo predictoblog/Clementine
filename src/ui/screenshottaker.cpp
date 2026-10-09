@@ -302,6 +302,7 @@ void ScreenshotTaker::TakeMainWindow(const QString& prefix) {
         {NowPlayingPanel::Page_Lyrics, "lyrics"},
         {NowPlayingPanel::Page_Artist, "artist"},
         {NowPlayingPanel::Page_Details, "details"},
+        {NowPlayingPanel::Page_Queue, "queue"},
     };
     for (const auto& page : pages) {
       panel->SetCurrentPage(page.first);

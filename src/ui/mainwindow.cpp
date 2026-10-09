@@ -92,6 +92,7 @@
 #include "playlist/playlistlistcontainer.h"
 #include "playlist/playlistmanager.h"
 #include "playlist/playlistsequence.h"
+#include "playlist/playlisttitlebar.h"
 #include "playlist/playlistview.h"
 #include "playlist/queue.h"
 #include "playlist/queuemanager.h"
@@ -121,6 +122,7 @@
 #include "ui/organiseerrordialog.h"
 #include "ui/playerbar.h"
 #include "ui/qtsystemtrayicon.h"
+#include "ui/queuepanel.h"
 #include "ui/settingsdialog.h"
 #include "ui/streamdetailsdialog.h"
 #include "ui/systemtrayicon.h"
@@ -202,6 +204,9 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
       side_column_width_(260),
       panel_width_(280),
       now_playing_panel_(nullptr),
+      queue_panel_(nullptr),
+      playlist_title_bar_(nullptr),
+      syncing_sources_(false),
       action_show_now_playing_panel_(nullptr),
       settings_dialog_(std::bind(&MainWindow::CreateSettingsDialog, this)),
       add_stream_dialog_([=]() {
@@ -305,11 +310,14 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   ui_->tabs->addTab(library_view_,
                     IconLoader::Load("view-choose", IconLoader::Base),
                     tr("Library"));
-  ui_->tabs->addTab(playlist_list_,
-                    IconLoader::Load("document-open", IconLoader::Base),
-                    tr("Playlists"));
   ui_->tabs->addTab(file_view_, IconLoader::Load("folder", IconLoader::Base),
                     tr("Files"));
+  // Each open playlist gets a row here as it opens (AddPlaylistSource()),
+  // above the saved ones.
+  ui_->tabs->addSection(tr("Playlists"));
+  ui_->tabs->addTab(playlist_list_,
+                    IconLoader::Load("document-open", IconLoader::Base),
+                    tr("All playlists"));
   ui_->tabs->addSection(tr("Elsewhere"));
   ui_->tabs->addTab(internet_view_,
                     IconLoader::Load("applications-internet", IconLoader::Base),
@@ -984,9 +992,31 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   css_loader->SetStyleSheet(this, ":mainwindow.css");
 
   // Load playlists
+  // A row in the source list for each open playlist, from the ones Init()
+  // restores onwards.
+  PlaylistManager* manager = app_->playlist_manager();
+  connect(manager, &PlaylistManager::PlaylistAdded, this,
+          [this](int id, const QString& name, bool) {
+            AddPlaylistSource(id, name);
+          });
+  connect(manager, &PlaylistManager::PlaylistClosed, this,
+          &MainWindow::RemovePlaylistSource);
+  connect(manager, &PlaylistManager::PlaylistDeleted, this,
+          &MainWindow::RemovePlaylistSource);
+  connect(manager, &PlaylistManager::PlaylistRenamed, this,
+          [this](int id, const QString& name) {
+            const int index = PlaylistSourceIndex(id);
+            if (index >= 0) ui_->tabs->setTabText(index, name);
+          });
+  connect(manager, &PlaylistManager::CurrentChanged, this,
+          &MainWindow::CurrentPlaylistChanged);
+
   app_->playlist_manager()->Init(app_->library_backend(),
                                  app_->playlist_backend(),
                                  ui_->playlist_sequence, ui_->playlist);
+  // Needs the playlists and their shuffle setting, so after Init().
+  queue_panel_->SetApplication(app_);
+  playlist_title_bar_->SetApplication(app_);
 
   // This connection must be done after the playlists have been initialized.
   connect(this, SIGNAL(StopAfterToggled(bool)), osd_,
@@ -1054,9 +1084,9 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   // Another sidebar style is another width for the source list.
   connect(ui_->tabs, &FancyTabWidget::ModeChanged, this,
           [this]() { SourceChanged(); });
-  const int current_tab = settings_.value("current_tab3", -1).toInt();
-  if (current_tab >= 0 && current_tab < ui_->tabs->count() &&
-      ui_->tabs->isTabEnabled(current_tab)) {
+  const int current_tab =
+      ui_->tabs->indexOfFixed(settings_.value("current_tab4", -1).toInt());
+  if (current_tab >= 0 && ui_->tabs->isTabEnabled(current_tab)) {
     ui_->tabs->setCurrentIndex(current_tab);
   } else {
     ui_->tabs->setCurrentPage(albums_source_);
@@ -1402,7 +1432,18 @@ void MainWindow::SaveGeometry(QSettings* settings) {
     settings->setValue("geometry", saveGeometry());
   }
   settings->setValue("splitter_state2", ui_->splitter->saveState());
-  settings->setValue("current_tab3", ui_->tabs->currentIndex());
+  // A playlist's own row isn't there next time: come back to Now playing.
+  int current_tab = ui_->tabs->fixedIndex(ui_->tabs->currentIndex());
+  if (current_tab < 0) {
+    for (int i = 0; i < ui_->tabs->count(); ++i) {
+      QWidget* wrapper = ui_->tabs->widget(i);
+      if (wrapper == now_playing_source_ ||
+          wrapper->isAncestorOf(now_playing_source_)) {
+        current_tab = ui_->tabs->fixedIndex(i);
+      }
+    }
+  }
+  settings->setValue("current_tab4", current_tab);
   settings->setValue("tab_mode2", ui_->tabs->mode());
 
   // Leaving this here for now
@@ -2518,6 +2559,26 @@ void MainWindow::SetUpLayout() {
   action_show_now_playing_panel_->setCheckable(true);
   action_show_now_playing_panel_->setToolTip(
       tr("Show or hide the Now playing panel: lyrics, the artist, details"));
+  // What plays next: the panel's Queue tab, and back again.
+  QToolButton* queue_button = new QToolButton(player_bar_);
+  queue_button->setIcon(
+      IconLoader::Load("view-media-playlist", IconLoader::Base));
+  queue_button->setToolTip(tr("Show what plays next"));
+  queue_button->setAutoRaise(true);
+  queue_button->setIconSize(QSize(18, 18));
+  connect(queue_button, &QToolButton::clicked, this, [this]() {
+    const bool showing =
+        now_playing_panel_->isVisible() &&
+        now_playing_panel_->current_page() == NowPlayingPanel::Page_Queue;
+    if (showing) {
+      now_playing_panel_->SetCurrentPage(NowPlayingPanel::Page_Lyrics);
+    } else {
+      action_show_now_playing_panel_->setChecked(true);
+      now_playing_panel_->SetCurrentPage(NowPlayingPanel::Page_Queue);
+    }
+  });
+  player_bar_->AddTrailingWidget(queue_button);
+
   QToolButton* panel_button = new QToolButton(player_bar_);
   panel_button->setDefaultAction(action_show_now_playing_panel_);
   panel_button->setAutoRaise(true);
@@ -2530,6 +2591,9 @@ void MainWindow::SetUpLayout() {
 
   // The playlist's summary and the scrobbling toggle stay as a slim footer
   // under the playlist; the old controls strip they shared goes.
+  playlist_title_bar_ = new PlaylistTitleBar(ui_->playlist_layout);
+  qobject_cast<QBoxLayout*>(ui_->playlist_layout->layout())
+      ->insertWidget(0, playlist_title_bar_);
   ui_->status_bar->setParent(ui_->playlist_layout);
   ui_->playlist_layout->layout()->addWidget(ui_->status_bar);
   ui_->player_controls_container->hide();
@@ -2550,6 +2614,8 @@ void MainWindow::SetUpLayout() {
   // the bottom of the sidebar.
   now_playing_panel_ = new NowPlayingPanel(this);
   now_playing_panel_->SetCoverWidget(ui_->now_playing);
+  queue_panel_ = new QueuePanel(this);
+  now_playing_panel_->SetPage(NowPlayingPanel::Page_Queue, queue_panel_);
   ui_->splitter->addWidget(now_playing_panel_);
   ui_->splitter->setStretchFactor(0, 0);
   ui_->splitter->setStretchFactor(1, 1);
@@ -2577,10 +2643,97 @@ void MainWindow::SourceChanged() {
     }
     centre_stack_->setCurrentWidget(library_browser_);
     SetSideColumnVisible(false);
+  } else if (is(now_playing_source_) || PlaylistSourcePage(wrapper)) {
+    // A playlist on its own, in the middle: the one playing, or the one
+    // picked.
+    PlaylistManager* manager = app_->playlist_manager();
+    const int id = is(now_playing_source_)
+                       ? manager->active_id()
+                       : playlist_sources_[PlaylistSourcePage(wrapper)];
+    // Before the playlists are loaded there's nothing to show yet, and an
+    // id that isn't a playlist would leave the view with none at all.
+    bool known = false;
+    for (Playlist* playlist : manager->GetAllPlaylists()) {
+      known = known || playlist->id() == id;
+    }
+    if (known && !syncing_sources_ && manager->current_id() != id) {
+      syncing_sources_ = true;
+      manager->SetCurrentPlaylist(id);
+      syncing_sources_ = false;
+    }
+    centre_stack_->setCurrentWidget(ui_->playlist_layout);
+    SetSideColumnVisible(false);
   } else {
     centre_stack_->setCurrentWidget(ui_->playlist_layout);
-    SetSideColumnVisible(!is(now_playing_source_));
+    SetSideColumnVisible(true);
   }
+}
+
+QWidget* MainWindow::PlaylistSourcePage(QWidget* wrapper) const {
+  if (!wrapper) return nullptr;
+  for (QWidget* page : playlist_sources_.keys()) {
+    if (wrapper == page || wrapper->isAncestorOf(page)) return page;
+  }
+  return nullptr;
+}
+
+int MainWindow::PlaylistSourceIndex(int id) const {
+  for (int i = 0; i < ui_->tabs->count(); ++i) {
+    QWidget* page = PlaylistSourcePage(ui_->tabs->widget(i));
+    if (page && playlist_sources_[page] == id) return i;
+  }
+  return -1;
+}
+
+void MainWindow::AddPlaylistSource(int id, const QString& name) {
+  if (PlaylistSourceIndex(id) >= 0) return;
+  // Above "All playlists", in the order they open.
+  int index = ui_->tabs->count();
+  for (int i = 0; i < ui_->tabs->count(); ++i) {
+    QWidget* wrapper = ui_->tabs->widget(i);
+    if (wrapper == playlist_list_ || wrapper->isAncestorOf(playlist_list_)) {
+      index = i;
+      break;
+    }
+  }
+  QWidget* page = new QWidget;
+  playlist_sources_[page] = id;
+  ui_->tabs->insertTransientTab(
+      index, page, IconLoader::Load("view-media-playlist", IconLoader::Base),
+      name);
+}
+
+void MainWindow::RemovePlaylistSource(int id) {
+  const int index = PlaylistSourceIndex(id);
+  if (index < 0) return;
+  QWidget* wrapper = ui_->tabs->widget(index);
+  playlist_sources_.remove(PlaylistSourcePage(wrapper));
+  if (ui_->tabs->currentIndex() == index) {
+    ui_->tabs->setCurrentPage(now_playing_source_);
+  }
+  ui_->tabs->removeTab(index);
+  wrapper->deleteLater();
+}
+
+void MainWindow::CurrentPlaylistChanged(Playlist* playlist) {
+  if (syncing_sources_ || !playlist) return;
+  // Showing a playlist on its own, and another becomes current (from the
+  // playlist's own tabs, say): show that one's row as picked.
+  QWidget* wrapper = ui_->tabs->currentWidget();
+  const bool on_now_playing =
+      wrapper && (wrapper == now_playing_source_ ||
+                  wrapper->isAncestorOf(now_playing_source_));
+  if (!on_now_playing && !PlaylistSourcePage(wrapper)) return;
+  if (on_now_playing &&
+      playlist->id() == app_->playlist_manager()->active_id()) {
+    return;
+  }
+
+  const int index = PlaylistSourceIndex(playlist->id());
+  if (index < 0 || index == ui_->tabs->currentIndex()) return;
+  syncing_sources_ = true;
+  ui_->tabs->setCurrentIndex(index);
+  syncing_sources_ = false;
 }
 
 void MainWindow::SetSideColumnVisible(bool visible) {
@@ -2703,7 +2856,7 @@ void MainWindow::SetUpViewMenu() {
     QString key;
   };
   const QList<Source> optional = {
-      {playlist_list_, tr("Playlists"), "playlists"},
+      {playlist_list_, tr("All playlists"), "playlists"},
       {file_view_, tr("Files"), "files"},
       {internet_view_, tr("Internet"), "internet"},
       {device_view_container_, tr("Devices"), "devices"},

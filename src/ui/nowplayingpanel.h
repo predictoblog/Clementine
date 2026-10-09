@@ -30,19 +30,25 @@ class QToolButton;
 class QVBoxLayout;
 
 // The panel on the right of the main window: the cover of what's playing,
-// and under it a row of tabs - Lyrics, Artist, Details - so lyrics and the
-// artist's biography sit beside the library rather than in its place.
+// and under it a row of tabs - Lyrics, Artist, Details, Queue - so lyrics,
+// the artist's biography and what plays next sit beside the library rather
+// than in its place.
 class NowPlayingPanel : public QWidget {
   Q_OBJECT
 
  public:
   explicit NowPlayingPanel(QWidget* parent = nullptr);
 
-  enum Page { Page_Lyrics = 0, Page_Artist = 1, Page_Details = 2 };
+  enum Page {
+    Page_Lyrics = 0,
+    Page_Artist = 1,
+    Page_Details = 2,
+    Page_Queue = 3,
+  };
 
   // The cover widget goes above the tabs.
   void SetCoverWidget(QWidget* cover);
-  // The pages for the Lyrics and Artist tabs. Details is built in.
+  // The pages for the Lyrics, Artist and Queue tabs. Details is built in.
   void SetPage(Page page, QWidget* widget);
 
   Page current_page() const;

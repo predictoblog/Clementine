@@ -44,7 +44,7 @@ static const int kSourceListRowHeight = 32;
 // Where the tabs' order is saved. Renamed when the source list added
 // sections and moved Song info and Artist info out, so an order saved for the
 // old set of tabs isn't applied to the new one.
-static const char* kTabOrderKey = "tab_order3_";
+static const char* kTabOrderKey = "tab_order4_";
 static const int kSourceListSectionHeight = 34;
 static const int kSourceListSpacerHeight = 10;
 static const int kSourceListIconSize = 18;
@@ -392,12 +392,41 @@ void FancyTabWidget::loadSettings(const QSettings& settings) {
 }
 
 void FancyTabWidget::saveSettings(QSettings* settings) {
+  // Positions among the fixed tabs only: the ones added and removed as the
+  // program runs aren't there when the order is loaded back.
   for (int i = 0; i < count(); i++) {
+    const int position = fixedIndex(i);
+    if (position < 0) continue;
     int originalIndex = tabBar()->tabData(i).toInt();
     QString k = kTabOrderKey + QString::number(originalIndex);
 
-    settings->setValue(k, i);
+    settings->setValue(k, position);
   }
+}
+
+int FancyTabWidget::insertTransientTab(int index, QWidget* page,
+                                       const QIcon& icon,
+                                       const QString& label) {
+  const int actual = insertTab(index, page, icon, label);
+  tabBar()->setTabData(actual, QVariant(-1));
+  return actual;
+}
+
+int FancyTabWidget::fixedIndex(int index) const {
+  if (index < 0 || index >= count()) return -1;
+  if (tabBar()->tabData(index).toInt() < 0) return -1;
+  int position = 0;
+  for (int i = 0; i < index; ++i) {
+    if (tabBar()->tabData(i).toInt() >= 0) ++position;
+  }
+  return position;
+}
+
+int FancyTabWidget::indexOfFixed(int position) const {
+  for (int i = 0; i < count(); ++i) {
+    if (fixedIndex(i) == position) return i;
+  }
+  return -1;
 }
 
 void FancyTabWidget::addBottomWidget(QWidget* widget) {

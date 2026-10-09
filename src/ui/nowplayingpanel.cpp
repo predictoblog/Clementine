@@ -72,7 +72,8 @@ NowPlayingPanel::NowPlayingPanel(QWidget* parent)
   QHBoxLayout* segments_layout = new QHBoxLayout(segments);
   segments_layout->setContentsMargins(3, 3, 3, 3);
   segments_layout->setSpacing(3);
-  const QStringList names = {tr("Lyrics"), tr("Artist"), tr("Details")};
+  const QStringList names = {tr("Lyrics"), tr("Artist"), tr("Details"),
+                             tr("Queue")};
   for (int i = 0; i < names.count(); ++i) {
     QToolButton* button = new QToolButton(segments);
     button->setText(names[i]);

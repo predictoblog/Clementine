@@ -19,6 +19,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QMap>
 #include <QSettings>
 #include <QSystemTrayIcon>
 #include <memory>
@@ -70,7 +71,9 @@ class PlayerBar;
 class PlaylistBackend;
 class PlaylistListContainer;
 class PlaylistManager;
+class PlaylistTitleBar;
 class QueueManager;
+class QueuePanel;
 class InternetItem;
 class InternetModel;
 class InternetViewContainer;
@@ -315,6 +318,12 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   void SourceChanged();
   void SetSideColumnVisible(bool visible);
   void PlayFromBrowser(const SongList& songs, int start, bool shuffle);
+  // The source list's row for each open playlist.
+  void AddPlaylistSource(int id, const QString& name);
+  void RemovePlaylistSource(int id);
+  void CurrentPlaylistChanged(Playlist* playlist);
+  QWidget* PlaylistSourcePage(QWidget* wrapper) const;
+  int PlaylistSourceIndex(int id) const;
   void QueueFromBrowser(const SongList& songs);
 
   void ConnectInfoView(SongInfoBase* view);
@@ -366,6 +375,11 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   int side_column_width_;
   int panel_width_;
   NowPlayingPanel* now_playing_panel_;
+  QueuePanel* queue_panel_;
+  PlaylistTitleBar* playlist_title_bar_;
+  // The empty page standing for each open playlist's row, and its id.
+  QMap<QWidget*, int> playlist_sources_;
+  bool syncing_sources_;
   QAction* action_show_now_playing_panel_;
 
   Lazy<SettingsDialog> settings_dialog_;

@@ -51,6 +51,15 @@ class FancyTabWidget : public QTabWidget {
   // or anything inside it.
   void setCurrentPage(QWidget* page);
 
+  // A tab that comes and goes as the program runs, like one per open
+  // playlist: left out of the saved order, which only the fixed tabs have.
+  int insertTransientTab(int index, QWidget* page, const QIcon& icon,
+                         const QString& label);
+  // A tab's position among the fixed tabs, or -1 for a transient one; and
+  // back. Saved positions use these, so transient tabs don't shift them.
+  int fixedIndex(int index) const;
+  int indexOfFixed(int position) const;
+
   void loadSettings(const QSettings&);
   void saveSettings(QSettings*);
   // Values are persisted - only add to the end

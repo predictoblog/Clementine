@@ -281,6 +281,7 @@ set(SOURCES
   playlist/playlistmanager.cpp
   playlist/playlistsaveoptionsdialog.cpp
   playlist/playlistsequence.cpp
+  playlist/playlisttitlebar.cpp
   playlist/playlisttabbar.cpp
   playlist/playlistundocommands.cpp
   playlist/playlistview.cpp
@@ -400,6 +401,7 @@ set(SOURCES
   ui/playbacksettingspage.cpp
   ui/playerbar.cpp
   ui/qtsystemtrayicon.cpp
+  ui/queuepanel.cpp
   ui/screensaver.cpp
   ui/screenshottaker.cpp
   ui/settingscategory.cpp
@@ -622,6 +624,7 @@ set(HEADERS
   playlist/playlistmanager.h
   playlist/playlistsaveoptionsdialog.h
   playlist/playlistsequence.h
+  playlist/playlisttitlebar.h
   playlist/playlisttabbar.h
   playlist/playlistview.h
   playlist/queue.h
@@ -723,6 +726,7 @@ set(HEADERS
   ui/playbacksettingspage.h
   ui/playerbar.h
   ui/qtsystemtrayicon.h
+  ui/queuepanel.h
   ui/screenshottaker.h
   ui/settingscategory.h
   ui/settingsdialog.h

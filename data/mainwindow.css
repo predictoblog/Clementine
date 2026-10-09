@@ -151,7 +151,8 @@ QToolButton[sequence="true"]:checked {
 
 #panel_segments QToolButton {
   border-radius: 6px;
-  padding: 4px 8px;
+  padding: 4px 2px;
+  font-size: 12px;
   font-weight: 600;
   color: %palette-placeholdertext;
 }
@@ -180,7 +181,7 @@ QToolButton[sequence="true"]:checked {
   font-weight: 800;
 }
 
-#library_browser QLabel[caption="true"] {
+QLabel[caption="true"] {
   font-size: 11px;
   font-weight: 600;
   color: %palette-placeholdertext;
@@ -256,4 +257,15 @@ QPushButton[link="true"] {
 
 QPushButton[link="true"]:hover {
   color: %palette-text;
+}
+
+/* The bar above the playlist: its name and what to do with it. */
+
+#playlist_title_bar {
+  background-color: %palette-base;
+}
+
+#playlist_title_bar QLabel[playlist_title="true"] {
+  font-size: 22px;
+  font-weight: 700;
 }
