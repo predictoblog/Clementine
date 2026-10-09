@@ -2,9 +2,6 @@
     <qresource prefix="/">
         <file>blank.ttf</file>
         <file>clementine_remote_qr.png</file>
-        <file>currenttrack_bar_left.png</file>
-        <file>currenttrack_bar_mid.png</file>
-        <file>currenttrack_bar_right.png</file>
         <file>currenttrack_pause.png</file>
         <file>currenttrack_play.png</file>
         <file>globalsearch.css</file>
@@ -499,5 +496,380 @@
         <file>tiny-start.png</file>
         <file>volumeslider-handle_glow.png</file>
         <file>volumeslider-handle.png</file>
+        <file>icons/line/16/application-exit.png</file>
+        <file>icons/line/16/applications-internet.png</file>
+        <file>icons/line/16/audio-volume-medium.png</file>
+        <file>icons/line/16/audio-volume-muted.png</file>
+        <file>icons/line/16/cancel.png</file>
+        <file>icons/line/16/configure.png</file>
+        <file>icons/line/16/dialog-ok-apply.png</file>
+        <file>icons/line/16/dialog-warning.png</file>
+        <file>icons/line/16/document-new.png</file>
+        <file>icons/line/16/document-open-remote.png</file>
+        <file>icons/line/16/document-open.png</file>
+        <file>icons/line/16/document-save.png</file>
+        <file>icons/line/16/download.png</file>
+        <file>icons/line/16/edit-clear-list.png</file>
+        <file>icons/line/16/edit-clear-locationbar-ltr.png</file>
+        <file>icons/line/16/edit-copy.png</file>
+        <file>icons/line/16/edit-delete.png</file>
+        <file>icons/line/16/edit-redo.png</file>
+        <file>icons/line/16/edit-rename.png</file>
+        <file>icons/line/16/edit-undo.png</file>
+        <file>icons/line/16/folder-new.png</file>
+        <file>icons/line/16/folder-sound.png</file>
+        <file>icons/line/16/folder.png</file>
+        <file>icons/line/16/go-down.png</file>
+        <file>icons/line/16/go-home.png</file>
+        <file>icons/line/16/go-jump.png</file>
+        <file>icons/line/16/go-next.png</file>
+        <file>icons/line/16/go-previous.png</file>
+        <file>icons/line/16/go-up.png</file>
+        <file>icons/line/16/group.png</file>
+        <file>icons/line/16/help-about.png</file>
+        <file>icons/line/16/input-keyboard.png</file>
+        <file>icons/line/16/internet-services.png</file>
+        <file>icons/line/16/ipodtouchicon.png</file>
+        <file>icons/line/16/list-add.png</file>
+        <file>icons/line/16/list-remove.png</file>
+        <file>icons/line/16/media-eject.png</file>
+        <file>icons/line/16/media-playback-pause.png</file>
+        <file>icons/line/16/media-playback-start.png</file>
+        <file>icons/line/16/media-playback-stop.png</file>
+        <file>icons/line/16/media-playlist-repeat.png</file>
+        <file>icons/line/16/media-playlist-shuffle.png</file>
+        <file>icons/line/16/media-seek-backward.png</file>
+        <file>icons/line/16/media-seek-forward.png</file>
+        <file>icons/line/16/media-skip-backward.png</file>
+        <file>icons/line/16/media-skip-forward.png</file>
+        <file>icons/line/16/multimedia-player-ipod-mini-blue.png</file>
+        <file>icons/line/16/podcast.png</file>
+        <file>icons/line/16/rate-enabled.png</file>
+        <file>icons/line/16/system-search.png</file>
+        <file>icons/line/16/tools-wizard.png</file>
+        <file>icons/line/16/user-away.png</file>
+        <file>icons/line/16/view-choose.png</file>
+        <file>icons/line/16/view-fullscreen.png</file>
+        <file>icons/line/16/view-media-equalizer.png</file>
+        <file>icons/line/16/view-media-lyrics.png</file>
+        <file>icons/line/16/view-media-playlist.png</file>
+        <file>icons/line/16/view-media-visualization.png</file>
+        <file>icons/line/16/view-refresh.png</file>
+        <file>icons/line/16/weather-showers-scattered.png</file>
+        <file>icons/line/16/x-clementine-album.png</file>
+        <file>icons/line/16/x-clementine-artist.png</file>
+        <file>icons/line/16/x-clementine-audiobook.png</file>
+        <file>icons/line/16/x-clementine-notification.png</file>
+        <file>icons/line/16/x-clementine-sleep.png</file>
+        <file>icons/line/16/zoom-in.png</file>
+        <file alias="icons/line/16/x-clementine-shuffle.png">icons/line/16/media-playlist-shuffle.png</file>
+        <file alias="icons/line/16/x-clementine-albums.png">icons/line/16/x-clementine-album.png</file>
+        <file alias="icons/line/16/media-optical.png">icons/line/16/x-clementine-album.png</file>
+        <file alias="icons/line/16/audio-x-generic.png">icons/line/16/folder-sound.png</file>
+        <file alias="icons/line/16/search.png">icons/line/16/system-search.png</file>
+        <file alias="icons/line/16/edit-find.png">icons/line/16/system-search.png</file>
+        <file alias="icons/line/16/document-open-folder.png">icons/line/16/folder.png</file>
+        <file alias="icons/line/16/about-info.png">icons/line/16/help-about.png</file>
+        <file alias="icons/line/16/help-hint.png">icons/line/16/help-about.png</file>
+        <file>icons/line/24/application-exit.png</file>
+        <file>icons/line/24/applications-internet.png</file>
+        <file>icons/line/24/audio-volume-medium.png</file>
+        <file>icons/line/24/audio-volume-muted.png</file>
+        <file>icons/line/24/cancel.png</file>
+        <file>icons/line/24/configure.png</file>
+        <file>icons/line/24/dialog-ok-apply.png</file>
+        <file>icons/line/24/dialog-warning.png</file>
+        <file>icons/line/24/document-new.png</file>
+        <file>icons/line/24/document-open-remote.png</file>
+        <file>icons/line/24/document-open.png</file>
+        <file>icons/line/24/document-save.png</file>
+        <file>icons/line/24/download.png</file>
+        <file>icons/line/24/edit-clear-list.png</file>
+        <file>icons/line/24/edit-clear-locationbar-ltr.png</file>
+        <file>icons/line/24/edit-copy.png</file>
+        <file>icons/line/24/edit-delete.png</file>
+        <file>icons/line/24/edit-redo.png</file>
+        <file>icons/line/24/edit-rename.png</file>
+        <file>icons/line/24/edit-undo.png</file>
+        <file>icons/line/24/folder-new.png</file>
+        <file>icons/line/24/folder-sound.png</file>
+        <file>icons/line/24/folder.png</file>
+        <file>icons/line/24/go-down.png</file>
+        <file>icons/line/24/go-home.png</file>
+        <file>icons/line/24/go-jump.png</file>
+        <file>icons/line/24/go-next.png</file>
+        <file>icons/line/24/go-previous.png</file>
+        <file>icons/line/24/go-up.png</file>
+        <file>icons/line/24/group.png</file>
+        <file>icons/line/24/help-about.png</file>
+        <file>icons/line/24/input-keyboard.png</file>
+        <file>icons/line/24/internet-services.png</file>
+        <file>icons/line/24/ipodtouchicon.png</file>
+        <file>icons/line/24/list-add.png</file>
+        <file>icons/line/24/list-remove.png</file>
+        <file>icons/line/24/media-eject.png</file>
+        <file>icons/line/24/media-playback-pause.png</file>
+        <file>icons/line/24/media-playback-start.png</file>
+        <file>icons/line/24/media-playback-stop.png</file>
+        <file>icons/line/24/media-playlist-repeat.png</file>
+        <file>icons/line/24/media-playlist-shuffle.png</file>
+        <file>icons/line/24/media-seek-backward.png</file>
+        <file>icons/line/24/media-seek-forward.png</file>
+        <file>icons/line/24/media-skip-backward.png</file>
+        <file>icons/line/24/media-skip-forward.png</file>
+        <file>icons/line/24/multimedia-player-ipod-mini-blue.png</file>
+        <file>icons/line/24/podcast.png</file>
+        <file>icons/line/24/rate-enabled.png</file>
+        <file>icons/line/24/system-search.png</file>
+        <file>icons/line/24/tools-wizard.png</file>
+        <file>icons/line/24/user-away.png</file>
+        <file>icons/line/24/view-choose.png</file>
+        <file>icons/line/24/view-fullscreen.png</file>
+        <file>icons/line/24/view-media-equalizer.png</file>
+        <file>icons/line/24/view-media-lyrics.png</file>
+        <file>icons/line/24/view-media-playlist.png</file>
+        <file>icons/line/24/view-media-visualization.png</file>
+        <file>icons/line/24/view-refresh.png</file>
+        <file>icons/line/24/weather-showers-scattered.png</file>
+        <file>icons/line/24/x-clementine-album.png</file>
+        <file>icons/line/24/x-clementine-artist.png</file>
+        <file>icons/line/24/x-clementine-audiobook.png</file>
+        <file>icons/line/24/x-clementine-notification.png</file>
+        <file>icons/line/24/x-clementine-sleep.png</file>
+        <file>icons/line/24/zoom-in.png</file>
+        <file alias="icons/line/24/x-clementine-shuffle.png">icons/line/24/media-playlist-shuffle.png</file>
+        <file alias="icons/line/24/x-clementine-albums.png">icons/line/24/x-clementine-album.png</file>
+        <file alias="icons/line/24/media-optical.png">icons/line/24/x-clementine-album.png</file>
+        <file alias="icons/line/24/audio-x-generic.png">icons/line/24/folder-sound.png</file>
+        <file alias="icons/line/24/search.png">icons/line/24/system-search.png</file>
+        <file alias="icons/line/24/edit-find.png">icons/line/24/system-search.png</file>
+        <file alias="icons/line/24/document-open-folder.png">icons/line/24/folder.png</file>
+        <file alias="icons/line/24/about-info.png">icons/line/24/help-about.png</file>
+        <file alias="icons/line/24/help-hint.png">icons/line/24/help-about.png</file>
+        <file>icons/line/32/application-exit.png</file>
+        <file>icons/line/32/applications-internet.png</file>
+        <file>icons/line/32/audio-volume-medium.png</file>
+        <file>icons/line/32/audio-volume-muted.png</file>
+        <file>icons/line/32/cancel.png</file>
+        <file>icons/line/32/configure.png</file>
+        <file>icons/line/32/dialog-ok-apply.png</file>
+        <file>icons/line/32/dialog-warning.png</file>
+        <file>icons/line/32/document-new.png</file>
+        <file>icons/line/32/document-open-remote.png</file>
+        <file>icons/line/32/document-open.png</file>
+        <file>icons/line/32/document-save.png</file>
+        <file>icons/line/32/download.png</file>
+        <file>icons/line/32/edit-clear-list.png</file>
+        <file>icons/line/32/edit-clear-locationbar-ltr.png</file>
+        <file>icons/line/32/edit-copy.png</file>
+        <file>icons/line/32/edit-delete.png</file>
+        <file>icons/line/32/edit-redo.png</file>
+        <file>icons/line/32/edit-rename.png</file>
+        <file>icons/line/32/edit-undo.png</file>
+        <file>icons/line/32/folder-new.png</file>
+        <file>icons/line/32/folder-sound.png</file>
+        <file>icons/line/32/folder.png</file>
+        <file>icons/line/32/go-down.png</file>
+        <file>icons/line/32/go-home.png</file>
+        <file>icons/line/32/go-jump.png</file>
+        <file>icons/line/32/go-next.png</file>
+        <file>icons/line/32/go-previous.png</file>
+        <file>icons/line/32/go-up.png</file>
+        <file>icons/line/32/group.png</file>
+        <file>icons/line/32/help-about.png</file>
+        <file>icons/line/32/input-keyboard.png</file>
+        <file>icons/line/32/internet-services.png</file>
+        <file>icons/line/32/ipodtouchicon.png</file>
+        <file>icons/line/32/list-add.png</file>
+        <file>icons/line/32/list-remove.png</file>
+        <file>icons/line/32/media-eject.png</file>
+        <file>icons/line/32/media-playback-pause.png</file>
+        <file>icons/line/32/media-playback-start.png</file>
+        <file>icons/line/32/media-playback-stop.png</file>
+        <file>icons/line/32/media-playlist-repeat.png</file>
+        <file>icons/line/32/media-playlist-shuffle.png</file>
+        <file>icons/line/32/media-seek-backward.png</file>
+        <file>icons/line/32/media-seek-forward.png</file>
+        <file>icons/line/32/media-skip-backward.png</file>
+        <file>icons/line/32/media-skip-forward.png</file>
+        <file>icons/line/32/multimedia-player-ipod-mini-blue.png</file>
+        <file>icons/line/32/podcast.png</file>
+        <file>icons/line/32/rate-enabled.png</file>
+        <file>icons/line/32/system-search.png</file>
+        <file>icons/line/32/tools-wizard.png</file>
+        <file>icons/line/32/user-away.png</file>
+        <file>icons/line/32/view-choose.png</file>
+        <file>icons/line/32/view-fullscreen.png</file>
+        <file>icons/line/32/view-media-equalizer.png</file>
+        <file>icons/line/32/view-media-lyrics.png</file>
+        <file>icons/line/32/view-media-playlist.png</file>
+        <file>icons/line/32/view-media-visualization.png</file>
+        <file>icons/line/32/view-refresh.png</file>
+        <file>icons/line/32/weather-showers-scattered.png</file>
+        <file>icons/line/32/x-clementine-album.png</file>
+        <file>icons/line/32/x-clementine-artist.png</file>
+        <file>icons/line/32/x-clementine-audiobook.png</file>
+        <file>icons/line/32/x-clementine-notification.png</file>
+        <file>icons/line/32/x-clementine-sleep.png</file>
+        <file>icons/line/32/zoom-in.png</file>
+        <file alias="icons/line/32/x-clementine-shuffle.png">icons/line/32/media-playlist-shuffle.png</file>
+        <file alias="icons/line/32/x-clementine-albums.png">icons/line/32/x-clementine-album.png</file>
+        <file alias="icons/line/32/media-optical.png">icons/line/32/x-clementine-album.png</file>
+        <file alias="icons/line/32/audio-x-generic.png">icons/line/32/folder-sound.png</file>
+        <file alias="icons/line/32/search.png">icons/line/32/system-search.png</file>
+        <file alias="icons/line/32/edit-find.png">icons/line/32/system-search.png</file>
+        <file alias="icons/line/32/document-open-folder.png">icons/line/32/folder.png</file>
+        <file alias="icons/line/32/about-info.png">icons/line/32/help-about.png</file>
+        <file alias="icons/line/32/help-hint.png">icons/line/32/help-about.png</file>
+        <file>icons/line/48/application-exit.png</file>
+        <file>icons/line/48/applications-internet.png</file>
+        <file>icons/line/48/audio-volume-medium.png</file>
+        <file>icons/line/48/audio-volume-muted.png</file>
+        <file>icons/line/48/cancel.png</file>
+        <file>icons/line/48/configure.png</file>
+        <file>icons/line/48/dialog-ok-apply.png</file>
+        <file>icons/line/48/dialog-warning.png</file>
+        <file>icons/line/48/document-new.png</file>
+        <file>icons/line/48/document-open-remote.png</file>
+        <file>icons/line/48/document-open.png</file>
+        <file>icons/line/48/document-save.png</file>
+        <file>icons/line/48/download.png</file>
+        <file>icons/line/48/edit-clear-list.png</file>
+        <file>icons/line/48/edit-clear-locationbar-ltr.png</file>
+        <file>icons/line/48/edit-copy.png</file>
+        <file>icons/line/48/edit-delete.png</file>
+        <file>icons/line/48/edit-redo.png</file>
+        <file>icons/line/48/edit-rename.png</file>
+        <file>icons/line/48/edit-undo.png</file>
+        <file>icons/line/48/folder-new.png</file>
+        <file>icons/line/48/folder-sound.png</file>
+        <file>icons/line/48/folder.png</file>
+        <file>icons/line/48/go-down.png</file>
+        <file>icons/line/48/go-home.png</file>
+        <file>icons/line/48/go-jump.png</file>
+        <file>icons/line/48/go-next.png</file>
+        <file>icons/line/48/go-previous.png</file>
+        <file>icons/line/48/go-up.png</file>
+        <file>icons/line/48/group.png</file>
+        <file>icons/line/48/help-about.png</file>
+        <file>icons/line/48/input-keyboard.png</file>
+        <file>icons/line/48/internet-services.png</file>
+        <file>icons/line/48/ipodtouchicon.png</file>
+        <file>icons/line/48/list-add.png</file>
+        <file>icons/line/48/list-remove.png</file>
+        <file>icons/line/48/media-eject.png</file>
+        <file>icons/line/48/media-playback-pause.png</file>
+        <file>icons/line/48/media-playback-start.png</file>
+        <file>icons/line/48/media-playback-stop.png</file>
+        <file>icons/line/48/media-playlist-repeat.png</file>
+        <file>icons/line/48/media-playlist-shuffle.png</file>
+        <file>icons/line/48/media-seek-backward.png</file>
+        <file>icons/line/48/media-seek-forward.png</file>
+        <file>icons/line/48/media-skip-backward.png</file>
+        <file>icons/line/48/media-skip-forward.png</file>
+        <file>icons/line/48/multimedia-player-ipod-mini-blue.png</file>
+        <file>icons/line/48/podcast.png</file>
+        <file>icons/line/48/rate-enabled.png</file>
+        <file>icons/line/48/system-search.png</file>
+        <file>icons/line/48/tools-wizard.png</file>
+        <file>icons/line/48/user-away.png</file>
+        <file>icons/line/48/view-choose.png</file>
+        <file>icons/line/48/view-fullscreen.png</file>
+        <file>icons/line/48/view-media-equalizer.png</file>
+        <file>icons/line/48/view-media-lyrics.png</file>
+        <file>icons/line/48/view-media-playlist.png</file>
+        <file>icons/line/48/view-media-visualization.png</file>
+        <file>icons/line/48/view-refresh.png</file>
+        <file>icons/line/48/weather-showers-scattered.png</file>
+        <file>icons/line/48/x-clementine-album.png</file>
+        <file>icons/line/48/x-clementine-artist.png</file>
+        <file>icons/line/48/x-clementine-audiobook.png</file>
+        <file>icons/line/48/x-clementine-notification.png</file>
+        <file>icons/line/48/x-clementine-sleep.png</file>
+        <file>icons/line/48/zoom-in.png</file>
+        <file alias="icons/line/48/x-clementine-shuffle.png">icons/line/48/media-playlist-shuffle.png</file>
+        <file alias="icons/line/48/x-clementine-albums.png">icons/line/48/x-clementine-album.png</file>
+        <file alias="icons/line/48/media-optical.png">icons/line/48/x-clementine-album.png</file>
+        <file alias="icons/line/48/audio-x-generic.png">icons/line/48/folder-sound.png</file>
+        <file alias="icons/line/48/search.png">icons/line/48/system-search.png</file>
+        <file alias="icons/line/48/edit-find.png">icons/line/48/system-search.png</file>
+        <file alias="icons/line/48/document-open-folder.png">icons/line/48/folder.png</file>
+        <file alias="icons/line/48/about-info.png">icons/line/48/help-about.png</file>
+        <file alias="icons/line/48/help-hint.png">icons/line/48/help-about.png</file>
+        <file>icons/line/96/application-exit.png</file>
+        <file>icons/line/96/applications-internet.png</file>
+        <file>icons/line/96/audio-volume-medium.png</file>
+        <file>icons/line/96/audio-volume-muted.png</file>
+        <file>icons/line/96/cancel.png</file>
+        <file>icons/line/96/configure.png</file>
+        <file>icons/line/96/dialog-ok-apply.png</file>
+        <file>icons/line/96/dialog-warning.png</file>
+        <file>icons/line/96/document-new.png</file>
+        <file>icons/line/96/document-open-remote.png</file>
+        <file>icons/line/96/document-open.png</file>
+        <file>icons/line/96/document-save.png</file>
+        <file>icons/line/96/download.png</file>
+        <file>icons/line/96/edit-clear-list.png</file>
+        <file>icons/line/96/edit-clear-locationbar-ltr.png</file>
+        <file>icons/line/96/edit-copy.png</file>
+        <file>icons/line/96/edit-delete.png</file>
+        <file>icons/line/96/edit-redo.png</file>
+        <file>icons/line/96/edit-rename.png</file>
+        <file>icons/line/96/edit-undo.png</file>
+        <file>icons/line/96/folder-new.png</file>
+        <file>icons/line/96/folder-sound.png</file>
+        <file>icons/line/96/folder.png</file>
+        <file>icons/line/96/go-down.png</file>
+        <file>icons/line/96/go-home.png</file>
+        <file>icons/line/96/go-jump.png</file>
+        <file>icons/line/96/go-next.png</file>
+        <file>icons/line/96/go-previous.png</file>
+        <file>icons/line/96/go-up.png</file>
+        <file>icons/line/96/group.png</file>
+        <file>icons/line/96/help-about.png</file>
+        <file>icons/line/96/input-keyboard.png</file>
+        <file>icons/line/96/internet-services.png</file>
+        <file>icons/line/96/ipodtouchicon.png</file>
+        <file>icons/line/96/list-add.png</file>
+        <file>icons/line/96/list-remove.png</file>
+        <file>icons/line/96/media-eject.png</file>
+        <file>icons/line/96/media-playback-pause.png</file>
+        <file>icons/line/96/media-playback-start.png</file>
+        <file>icons/line/96/media-playback-stop.png</file>
+        <file>icons/line/96/media-playlist-repeat.png</file>
+        <file>icons/line/96/media-playlist-shuffle.png</file>
+        <file>icons/line/96/media-seek-backward.png</file>
+        <file>icons/line/96/media-seek-forward.png</file>
+        <file>icons/line/96/media-skip-backward.png</file>
+        <file>icons/line/96/media-skip-forward.png</file>
+        <file>icons/line/96/multimedia-player-ipod-mini-blue.png</file>
+        <file>icons/line/96/podcast.png</file>
+        <file>icons/line/96/rate-enabled.png</file>
+        <file>icons/line/96/system-search.png</file>
+        <file>icons/line/96/tools-wizard.png</file>
+        <file>icons/line/96/user-away.png</file>
+        <file>icons/line/96/view-choose.png</file>
+        <file>icons/line/96/view-fullscreen.png</file>
+        <file>icons/line/96/view-media-equalizer.png</file>
+        <file>icons/line/96/view-media-lyrics.png</file>
+        <file>icons/line/96/view-media-playlist.png</file>
+        <file>icons/line/96/view-media-visualization.png</file>
+        <file>icons/line/96/view-refresh.png</file>
+        <file>icons/line/96/weather-showers-scattered.png</file>
+        <file>icons/line/96/x-clementine-album.png</file>
+        <file>icons/line/96/x-clementine-artist.png</file>
+        <file>icons/line/96/x-clementine-audiobook.png</file>
+        <file>icons/line/96/x-clementine-notification.png</file>
+        <file>icons/line/96/x-clementine-sleep.png</file>
+        <file>icons/line/96/zoom-in.png</file>
+        <file alias="icons/line/96/x-clementine-shuffle.png">icons/line/96/media-playlist-shuffle.png</file>
+        <file alias="icons/line/96/x-clementine-albums.png">icons/line/96/x-clementine-album.png</file>
+        <file alias="icons/line/96/media-optical.png">icons/line/96/x-clementine-album.png</file>
+        <file alias="icons/line/96/audio-x-generic.png">icons/line/96/folder-sound.png</file>
+        <file alias="icons/line/96/search.png">icons/line/96/system-search.png</file>
+        <file alias="icons/line/96/edit-find.png">icons/line/96/system-search.png</file>
+        <file alias="icons/line/96/document-open-folder.png">icons/line/96/folder.png</file>
+        <file alias="icons/line/96/about-info.png">icons/line/96/help-about.png</file>
+        <file alias="icons/line/96/help-hint.png">icons/line/96/help-about.png</file>
     </qresource>
 </RCC>

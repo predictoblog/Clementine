@@ -18,6 +18,8 @@
 #ifndef FANCYTABWIDGET_H
 #define FANCYTABWIDGET_H
 
+#include <QHash>
+#include <QSet>
 #include <QTabWidget>
 #include <QWidget>
 #include <memory>
@@ -41,6 +43,28 @@ class FancyTabWidget : public QTabWidget {
 
   void setBackgroundPixmap(const QPixmap& pixmap);
   void addSpacer();
+  // A caption heading the tabs added after it, in the source list. Like a
+  // spacer, it's a disabled tab with an empty page.
+  void addSection(const QString& title);
+  bool isSection(int index) const;
+
+  // Shows the tab holding `page`, which can be the widget passed to addTab()
+  // or anything inside it.
+  void setCurrentPage(QWidget* page);
+
+  // A count or short word shown at the right of a row in the source list,
+  // in the accent: "3" beside Needs attention. Empty takes it away.
+  void setTabBadge(QWidget* page, const QString& badge);
+  QString tabBadge(int index) const;
+
+  // A tab that comes and goes as the program runs, like one per open
+  // playlist: left out of the saved order, which only the fixed tabs have.
+  int insertTransientTab(int index, QWidget* page, const QIcon& icon,
+                         const QString& label);
+  // A tab's position among the fixed tabs, or -1 for a transient one; and
+  // back. Saved positions use these, so transient tabs don't shift them.
+  int fixedIndex(int index) const;
+  int indexOfFixed(int position) const;
 
   void loadSettings(const QSettings&);
   void saveSettings(QSettings*);
@@ -52,12 +76,14 @@ class FancyTabWidget : public QTabWidget {
     Mode_Tabs,
     Mode_IconOnlyTabs,
     Mode_PlainSidebar,
+    Mode_SourceList,
   };
 
   static const QSize TabSize_LargeSidebar;
 
   static const QSize IconSize_LargeSidebar;
   static const QSize IconSize_SmallSidebar;
+  static const int kSourceListWidth;
 
   Mode mode() { return mode_; }
 
@@ -86,6 +112,8 @@ class FancyTabWidget : public QTabWidget {
   QMenu* menu_;
   Mode mode_;
   QWidget* bottom_widget_;
+  QSet<QWidget*> sections_;
+  QHash<QWidget*, QString> badges_;  // keyed on the tab's own widget
 };
 
 }  // namespace Internal

@@ -36,6 +36,7 @@ QString IconLoader::custom_icon_path_;
 QList<QString> IconLoader::icon_sub_path_;
 bool IconLoader::use_sys_icons_;
 bool IconLoader::use_symbolic_icons_;
+bool IconLoader::use_line_icons_;
 
 void IconLoader::Init() {
   sizes_.clear();
@@ -50,6 +51,7 @@ void IconLoader::Init() {
   settings.beginGroup(Appearance::kSettingsGroup);
   use_sys_icons_ = settings.value("b_use_sys_icons", false).toBool();
   use_symbolic_icons_ = UseSymbolicIcons();
+  use_line_icons_ = UseLineIcons();
 }
 
 QIcon IconLoader::Load(const QString& name, const IconType& icontype) {
@@ -79,6 +81,14 @@ QIcon IconLoader::Load(const QString& name, const IconType& icontype) {
     }
   }
 #endif
+
+  // Clementine's own line icons for the common actions, recoloured to follow
+  // the theme, unless the user has an icon set of their own.
+  if (use_line_icons_ && icontype == Base &&
+      !QDir(custom_icon_path_ + icon_sub_path_.at(icontype)).exists()) {
+    ret = LineIcon(name);
+    if (!ret.isNull()) return ret;
+  }
 
   // Under GNOME, the icon theme's symbolic icons for the common actions,
   // unless the user has an icon set of their own.

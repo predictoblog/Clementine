@@ -94,6 +94,7 @@ class EngineRouter : public Engine::Base {
   void SetEqualizerEnabled(bool enabled);
   void SetEqualizerParameters(int preamp, const QList<int>& band_gains);
   void SetStereoBalance(float value);
+  void SetPlaybackRate(double rate) override;
 
  protected:
   void SetVolumeSW(uint percent);

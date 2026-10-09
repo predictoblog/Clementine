@@ -28,6 +28,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "core/appearance.h"
 #include "core/logging.h"
 #include "stylehelper.h"
 
@@ -35,6 +36,18 @@ const QSize FancyTabWidget::IconSize_LargeSidebar = QSize(24, 24);
 const QSize FancyTabWidget::IconSize_SmallSidebar = QSize(22, 22);
 
 const QSize FancyTabWidget::TabSize_LargeSidebar = QSize(70, 47);
+
+// The source list: a labelled row per page, a caption per section.
+const int FancyTabWidget::kSourceListWidth = 188;
+static const int kSourceListRowHeight = 32;
+
+// Where the tabs' order is saved. Renamed when the source list added
+// sections and moved Song info and Artist info out, so an order saved for the
+// old set of tabs isn't applied to the new one.
+static const char* kTabOrderKey = "tab_order4_";
+static const int kSourceListSectionHeight = 34;
+static const int kSourceListSpacerHeight = 10;
+static const int kSourceListIconSize = 18;
 
 class FancyTabBar : public QTabBar {
  private:
@@ -56,7 +69,10 @@ class FancyTabBar : public QTabBar {
 
     QSize tabSize(tabSizeHint(0));
     size.setWidth(tabSize.width());
-    int guessHeight = tabSize.height() * count();
+    int guessHeight = 0;
+    for (int i = 0; i < count(); ++i) {
+      if (isTabVisible(i)) guessHeight += tabSizeHint(i).height();
+    }
     if (guessHeight > size.height()) size.setHeight(guessHeight);
     return size;
   }
@@ -67,6 +83,16 @@ class FancyTabBar : public QTabBar {
   QSize tabSizeHint(int index) const {
     FancyTabWidget* tabWidget = (FancyTabWidget*)parentWidget();
     QSize size = FancyTabWidget::TabSize_LargeSidebar;
+
+    if (tabWidget->mode() == FancyTabWidget::Mode_SourceList) {
+      int height = kSourceListRowHeight;
+      if (tabWidget->isSection(index)) {
+        height = kSourceListSectionHeight;
+      } else if (tabText(index).isEmpty()) {
+        height = kSourceListSpacerHeight;
+      }
+      return QSize(FancyTabWidget::kSourceListWidth, height);
+    }
 
     if (tabWidget->mode() != FancyTabWidget::Mode_LargeSidebar) {
       size = QTabBar::tabSizeHint(index);
@@ -105,6 +131,10 @@ class FancyTabBar : public QTabBar {
       }
       isTextHiddenInToolTip = false;
     }
+    if (tabWidget->mode() == FancyTabWidget::Mode_SourceList) {
+      PaintSourceList(tabWidget);
+      return;
+    }
     if (tabWidget->mode() != FancyTabWidget::Mode_LargeSidebar &&
         tabWidget->mode() != FancyTabWidget::Mode_SmallSidebar) {
       // Cache and hide label text for IconOnlyTabs mode
@@ -130,49 +160,20 @@ class FancyTabBar : public QTabBar {
 
       QRect selectionRect = tabrect;
 
-      if (selected) {
-        // Selection highlight
+      // Selected and hovered tabs get a rounded fill in the palette's raised
+      // colour, inset from the sidebar's edges: flat, like a source list,
+      // rather than the old glossy bevel.
+      const QRect pill = selectionRect.adjusted(4, 2, -4, -2);
+      const bool hovered =
+          !selected && index == mouseHoverTabIndex && isTabEnabled(index);
+      if (selected || hovered) {
+        QColor fill = palette().color(QPalette::Button);
+        if (hovered) fill.setAlphaF(0.6);
         p.save();
-        QLinearGradient grad(selectionRect.topLeft(), selectionRect.topRight());
-        grad.setColorAt(0, QColor(255, 255, 255, 140));
-        grad.setColorAt(1, QColor(255, 255, 255, 210));
-        p.fillRect(selectionRect.adjusted(0, 0, 0, -1), grad);
-        p.restore();
-
-        // shadow lines
-        p.setPen(QColor(0, 0, 0, 110));
-        p.drawLine(selectionRect.topLeft() + QPoint(1, -1),
-                   selectionRect.topRight() - QPoint(0, 1));
-        p.drawLine(selectionRect.bottomLeft(), selectionRect.bottomRight());
-        p.setPen(QColor(0, 0, 0, 40));
-        p.drawLine(selectionRect.topLeft(), selectionRect.bottomLeft());
-
-        // highlights
-        p.setPen(QColor(255, 255, 255, 50));
-        p.drawLine(selectionRect.topLeft() + QPoint(0, -2),
-                   selectionRect.topRight() - QPoint(0, 2));
-        p.drawLine(selectionRect.bottomLeft() + QPoint(0, 1),
-                   selectionRect.bottomRight() + QPoint(0, 1));
-        p.setPen(QColor(255, 255, 255, 40));
-        p.drawLine(selectionRect.topLeft() + QPoint(0, 0),
-                   selectionRect.topRight());
-        p.drawLine(selectionRect.topRight() + QPoint(0, 1),
-                   selectionRect.bottomRight() - QPoint(0, 1));
-        p.drawLine(selectionRect.bottomLeft() + QPoint(0, -1),
-                   selectionRect.bottomRight() - QPoint(0, 1));
-      }
-
-      // Mouse hover effect
-      if (!selected && index == mouseHoverTabIndex && isTabEnabled(index)) {
-        p.save();
-        QLinearGradient grad(selectionRect.topLeft(), selectionRect.topRight());
-        grad.setColorAt(0, Qt::transparent);
-        grad.setColorAt(0.5, QColor(255, 255, 255, 40));
-        grad.setColorAt(1, Qt::transparent);
-        p.fillRect(selectionRect, grad);
-        p.setPen(QPen(grad, 1.0));
-        p.drawLine(selectionRect.topLeft(), selectionRect.topRight());
-        p.drawLine(selectionRect.bottomRight(), selectionRect.bottomLeft());
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(fill);
+        p.drawRoundedRect(pill, 6, 6);
         p.restore();
       }
 
@@ -209,20 +210,16 @@ class FancyTabBar : public QTabBar {
 
         p.setTransform(m);
 
-        QFont boldFont(p.font());
-        boldFont.setPointSizeF(Utils::StyleHelper::sidebarFontSize());
-        boldFont.setBold(true);
-        p.setFont(boldFont);
+        QFont font(p.font());
+        font.setPointSizeF(Utils::StyleHelper::sidebarFontSize());
+        font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
+        p.setFont(font);
 
-        // Text drop shadow color
-        p.setPen(selected ? QColor(255, 255, 255, 160) : QColor(0, 0, 0, 110));
-        p.translate(0, 3);
-        p.drawText(tabrectText, textFlags, tabText(index));
-
-        // Text foreground color
-        p.translate(0, -1);
-        p.setPen(selected ? QColor(60, 60, 60)
-                          : Utils::StyleHelper::panelTextColor());
+        // The selected tab takes the accent colour; the icon below is drawn
+        // with the same pen, so a monochrome icon follows the text.
+        p.translate(0, 2);
+        p.setPen(selected ? Appearance::AccentColor(palette())
+                          : palette().color(QPalette::WindowText));
         p.drawText(tabrectText, textFlags, tabText(index));
 
         // Draw the icon
@@ -247,6 +244,91 @@ class FancyTabBar : public QTabBar {
       }
     }
   }
+
+ private:
+  // The source list: a labelled row per page with its icon on the left, and
+  // small uppercase captions for the sections, like iTunes' source list.
+  void PaintSourceList(FancyTabWidget* tabWidget) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    const QColor text = palette().color(QPalette::WindowText);
+    const QColor quiet = Appearance::QuietTextColor(palette());
+    const QColor accent = Appearance::AccentColor(palette());
+
+    for (int index = 0; index < count(); index++) {
+      if (!isTabVisible(index)) continue;
+      const QRect rect = tabRect(index);
+      const QString label = tabText(index);
+      if (label.isEmpty()) continue;  // a spacer
+
+      if (tabWidget->isSection(index)) {
+        QFont font(this->font());
+        font.setPointSizeF(font.pointSizeF() * 0.8);
+        font.setWeight(QFont::DemiBold);
+        font.setLetterSpacing(QFont::PercentageSpacing, 106);
+        font.setCapitalization(QFont::AllUppercase);
+        p.setFont(font);
+        p.setPen(quiet);
+        p.drawText(rect.adjusted(14, 0, -8, -6),
+                   Qt::AlignLeft | Qt::AlignBottom, label);
+        continue;
+      }
+
+      const bool selected = tabWidget->currentIndex() == index;
+      const bool hovered =
+          !selected && index == mouseHoverTabIndex && isTabEnabled(index);
+      if (selected || hovered) {
+        QColor fill = palette().color(QPalette::Button);
+        if (hovered) fill.setAlphaF(0.6);
+        p.setPen(Qt::NoPen);
+        p.setBrush(fill);
+        p.drawRoundedRect(QRectF(rect).adjusted(8, 2, -8, -2), 6, 6);
+      }
+
+      const QColor color = selected ? accent : text;
+      // From the widget, not the painter, which a section caption may have
+      // left small and in capitals.
+      QFont font(this->font());
+      font.setWeight(selected ? QFont::DemiBold : QFont::Normal);
+      p.setFont(font);
+
+      // Monochrome icons take the pen's colour.
+      p.setPen(color);
+      const QRect icon_rect(
+          rect.left() + 16,
+          rect.top() + (rect.height() - kSourceListIconSize) / 2,
+          kSourceListIconSize, kSourceListIconSize);
+      tabIcon(index).paint(&p, icon_rect);
+
+      QRect text_rect = rect.adjusted(16 + kSourceListIconSize + 10, 0, -12, 0);
+
+      // A badge at the right: a pill in the accent with the count on it.
+      const QString badge = tabWidget->tabBadge(index);
+      if (!badge.isEmpty()) {
+        QFont badge_font(this->font());
+        badge_font.setPointSizeF(badge_font.pointSizeF() * 0.8);
+        badge_font.setWeight(QFont::Bold);
+        const QFontMetrics metrics(badge_font);
+        const int height = metrics.height() + 2;
+        const int width = qMax(height, metrics.horizontalAdvance(badge) + 10);
+        const QRect pill(rect.right() - 16 - width,
+                         rect.top() + (rect.height() - height) / 2, width,
+                         height);
+        p.save();
+        p.setPen(Qt::NoPen);
+        p.setBrush(accent);
+        p.drawRoundedRect(pill, height / 2.0, height / 2.0);
+        p.setFont(badge_font);
+        p.setPen(palette().color(QPalette::Base));
+        p.drawText(pill, Qt::AlignCenter, badge);
+        p.restore();
+        text_rect.setRight(pill.left() - 6);
+      }
+      p.drawText(text_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                 QFontMetrics(font).elidedText(label, Qt::ElideRight,
+                                               text_rect.width()));
+    }
+  }
 };
 
 // Spacers are just disabled pages
@@ -254,6 +336,48 @@ void FancyTabWidget::addSpacer() {
   QWidget* spacer = new QWidget();
   const int index = addTab(spacer, QIcon(), QString());
   setTabEnabled(index, false);
+}
+
+void FancyTabWidget::addSection(const QString& title) {
+  QWidget* section = new QWidget();
+  const int index = addTab(section, QIcon(), title);
+  setTabEnabled(index, false);
+  sections_.insert(widget(index));
+}
+
+bool FancyTabWidget::isSection(int index) const {
+  return sections_.contains(widget(index));
+}
+
+void FancyTabWidget::setCurrentPage(QWidget* page) {
+  // Each tab's widget is a wrapper holding the page (see insertTab), so
+  // QTabWidget::setCurrentWidget(page) alone never finds it.
+  for (int i = 0; i < count(); ++i) {
+    QWidget* wrapper = widget(i);
+    if (wrapper == page || wrapper->isAncestorOf(page)) {
+      setCurrentIndex(i);
+      return;
+    }
+  }
+}
+
+void FancyTabWidget::setTabBadge(QWidget* page, const QString& badge) {
+  for (int i = 0; i < count(); ++i) {
+    QWidget* wrapper = widget(i);
+    if (wrapper == page || wrapper->isAncestorOf(page)) {
+      if (badge.isEmpty()) {
+        badges_.remove(wrapper);
+      } else {
+        badges_[wrapper] = badge;
+      }
+      tabBar()->update();
+      return;
+    }
+  }
+}
+
+QString FancyTabWidget::tabBadge(int index) const {
+  return badges_.value(widget(index));
 }
 
 void FancyTabWidget::setBackgroundPixmap(const QPixmap& pixmap) {
@@ -297,7 +421,7 @@ FancyTabWidget::FancyTabWidget(QWidget* parent)
 void FancyTabWidget::loadSettings(const QSettings& settings) {
   for (int i = 0; i < count(); i++) {
     int originalIndex = tabBar()->tabData(i).toInt();
-    QString k = "tab_index_" + QString::number(originalIndex);
+    QString k = kTabOrderKey + QString::number(originalIndex);
 
     int newIndex = settings.value(k, i).toInt();
 
@@ -309,12 +433,41 @@ void FancyTabWidget::loadSettings(const QSettings& settings) {
 }
 
 void FancyTabWidget::saveSettings(QSettings* settings) {
+  // Positions among the fixed tabs only: the ones added and removed as the
+  // program runs aren't there when the order is loaded back.
   for (int i = 0; i < count(); i++) {
+    const int position = fixedIndex(i);
+    if (position < 0) continue;
     int originalIndex = tabBar()->tabData(i).toInt();
-    QString k = "tab_index_" + QString::number(originalIndex);
+    QString k = kTabOrderKey + QString::number(originalIndex);
 
-    settings->setValue(k, i);
+    settings->setValue(k, position);
   }
+}
+
+int FancyTabWidget::insertTransientTab(int index, QWidget* page,
+                                       const QIcon& icon,
+                                       const QString& label) {
+  const int actual = insertTab(index, page, icon, label);
+  tabBar()->setTabData(actual, QVariant(-1));
+  return actual;
+}
+
+int FancyTabWidget::fixedIndex(int index) const {
+  if (index < 0 || index >= count()) return -1;
+  if (tabBar()->tabData(index).toInt() < 0) return -1;
+  int position = 0;
+  for (int i = 0; i < index; ++i) {
+    if (tabBar()->tabData(i).toInt() >= 0) ++position;
+  }
+  return position;
+}
+
+int FancyTabWidget::indexOfFixed(int position) const {
+  for (int i = 0; i < count(); ++i) {
+    if (fixedIndex(i) == position) return i;
+  }
+  return -1;
 }
 
 void FancyTabWidget::addBottomWidget(QWidget* widget) {
@@ -347,51 +500,21 @@ int FancyTabWidget::insertTab(int index, QWidget* page, const QIcon& icon,
 
 void FancyTabWidget::paintEvent(QPaintEvent* pe) {
   if (mode() != FancyTabWidget::Mode_LargeSidebar &&
-      mode() != FancyTabWidget::Mode_SmallSidebar) {
+      mode() != FancyTabWidget::Mode_SmallSidebar &&
+      mode() != FancyTabWidget::Mode_SourceList) {
     QTabWidget::paintEvent(pe);
     return;
   }
   QStylePainter p(this);
 
-  // The brown color (Ubuntu) you see on the background gradient
-  QColor baseColor = StyleHelper::baseColor();
-
+  // A flat panel in the palette's window colour, with a hairline on the
+  // edge it shares with the content.
   QRect backgroundRect = rect();
   backgroundRect.setWidth(((FancyTabBar*)tabBar())->width());
-  p.fillRect(backgroundRect, baseColor);
+  p.fillRect(backgroundRect, palette().color(QPalette::Window));
 
-  // Horizontal gradient over the sidebar from transparent to dark
-  Utils::StyleHelper::verticalGradient(&p, backgroundRect, backgroundRect,
-                                       false);
-
-  // Draw the translucent png graphics over the gradient fill
-  {
-    if (!background_pixmap_.isNull()) {
-      QRect pixmap_rect(background_pixmap_.rect());
-      pixmap_rect.moveTo(backgroundRect.topLeft());
-
-      while (pixmap_rect.top() < backgroundRect.bottom()) {
-        QRect source_rect(pixmap_rect.intersected(backgroundRect));
-        source_rect.moveTo(0, 0);
-        p.drawPixmap(pixmap_rect.topLeft(), background_pixmap_, source_rect);
-        pixmap_rect.moveTop(pixmap_rect.bottom() - 10);
-      }
-    }
-  }
-
-  // Shadow effect of the background
-  {
-    QColor light(255, 255, 255, 80);
-    p.setPen(light);
-    p.drawLine(backgroundRect.topRight() - QPoint(1, 0),
-               backgroundRect.bottomRight() - QPoint(1, 0));
-    QColor dark(0, 0, 0, 90);
-    p.setPen(dark);
-    p.drawLine(backgroundRect.topLeft(), backgroundRect.bottomLeft());
-
-    p.setPen(Utils::StyleHelper::borderColor());
-    p.drawLine(backgroundRect.topRight(), backgroundRect.bottomRight());
-  }
+  p.setPen(palette().color(QPalette::Mid));
+  p.drawLine(backgroundRect.topRight(), backgroundRect.bottomRight());
 }
 
 void FancyTabWidget::tabBarUpdateGeometry() { tabBar()->updateGeometry(); }
@@ -430,6 +553,7 @@ void FancyTabWidget::contextMenuEvent(QContextMenuEvent* e) {
     menu_ = new QMenu(this);
 
     QActionGroup* group = new QActionGroup(this);
+    addMenuItem(group, tr("Source list"), Mode_SourceList);
     addMenuItem(group, tr("Large sidebar"), Mode_LargeSidebar);
     addMenuItem(group, tr("Small sidebar"), Mode_SmallSidebar);
     addMenuItem(group, tr("Plain sidebar"), Mode_PlainSidebar);

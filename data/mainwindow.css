@@ -9,7 +9,7 @@ darwin QMenu {
 #playlist {
   background-color: %palette-base;
   alternate-background-color: %palette-alternate-base;
-
+  border: none;
 }
 
 #playlist[default_background_enabled = "true"] {
@@ -20,10 +20,12 @@ darwin QMenu {
   background-clip: content;
 }
 
+/* Tool buttons: flat until hovered, then a soft raised fill - no borders. */
+
 QToolButton {
-  border: 2px solid transparent;
-  border-radius: 3px;
-  padding: 1px;
+  border: none;
+  border-radius: 6px;
+  padding: 3px;
 }
 
 QToolButton::menu-button {
@@ -36,19 +38,284 @@ QToolButton[popupMode="1"] {
 }
 
 QToolButton:hover {
-  border: 2px solid %palette-highlight;
-  background-color: %palette-highlight-lighter;
+  background-color: %palette-button;
 }
 
 QToolButton:hover[popupMode="1"] {
   padding-right: 16px;
 }
 
-QToolButton:pressed {
-  border: 2px solid %palette-highlight-darker;
-  background-color: %palette-highlight-lighter;
+QToolButton:pressed,
+QToolButton:checked {
+  background-color: %palette-mid;
 }
 
 QToolButton:pressed[popupMode="1"] {
   padding-right: 16px;
+}
+
+/* Column headers: flat labels in the secondary text colour. */
+
+QHeaderView {
+  background-color: %palette-base;
+  border: none;
+}
+
+QHeaderView::section {
+  background-color: %palette-base;
+  color: %palette-placeholdertext;
+  border: none;
+  border-bottom: 1px solid %palette-mid;
+  padding: 4px 6px;
+}
+
+/* Thin, rounded scroll bars that stay out of the way. */
+
+QScrollBar:vertical {
+  background: transparent;
+  width: 10px;
+  margin: 0px;
+}
+
+QScrollBar:horizontal {
+  background: transparent;
+  height: 10px;
+  margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+  background: %palette-mid;
+  border-radius: 4px;
+  min-height: 32px;
+  margin: 1px 2px;
+}
+
+QScrollBar::handle:horizontal {
+  background: %palette-mid;
+  border-radius: 4px;
+  min-width: 32px;
+  margin: 2px 1px;
+}
+
+QScrollBar::handle:hover {
+  background: %palette-placeholdertext;
+}
+
+QScrollBar::add-line,
+QScrollBar::sub-line {
+  width: 0px;
+  height: 0px;
+  border: none;
+}
+
+QScrollBar::add-page,
+QScrollBar::sub-page {
+  background: transparent;
+}
+
+/* A quiet divider between the sidebar and the track list. */
+
+QSplitter::handle {
+  background-color: %palette-mid;
+}
+
+/* The player bar along the bottom of the window. */
+
+#player_bar {
+  background-color: %palette-base;
+  border-top: 1px solid %palette-mid;
+}
+
+/* Shuffle and repeat: labelled pills, in the accent when on. */
+
+QToolButton[sequence="true"] {
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+
+QToolButton[sequence="true"]:checked {
+  color: %palette-link;
+  background-color: %palette-button;
+}
+
+/* The Now playing panel on the right, and its row of tabs. */
+
+#now_playing_panel {
+  background-color: %palette-window;
+}
+
+#panel_segments {
+  background-color: %palette-button;
+  border-radius: 8px;
+}
+
+#panel_segments QToolButton {
+  border-radius: 6px;
+  padding: 4px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: %palette-placeholdertext;
+}
+
+#panel_segments QToolButton:checked {
+  background-color: %palette-light;
+  color: %palette-text;
+}
+
+/* The library's browsing pages: albums, an album, songs. */
+
+#library_browser,
+#library_browser QWidget#album_grid,
+#library_browser QTreeView,
+#library_browser QListWidget {
+  background-color: %palette-base;
+}
+
+#library_browser QLabel[page_title="true"] {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+#library_browser QLabel[album_title="true"] {
+  font-size: 36px;
+  font-weight: 800;
+}
+
+QLabel[caption="true"] {
+  font-size: 11px;
+  font-weight: 600;
+  color: %palette-placeholdertext;
+  text-transform: uppercase;
+}
+
+#library_browser QLabel[column_heading="true"] {
+  font-size: 11px;
+  font-weight: 600;
+  color: %palette-placeholdertext;
+  background-color: %palette-window;
+  padding: 6px 10px;
+}
+
+#column_browser {
+  border: 1px solid %palette-mid;
+  border-radius: 8px;
+}
+
+#column_browser QListWidget::item {
+  padding: 3px 8px;
+}
+
+#column_browser QListWidget::item:selected {
+  background-color: %palette-highlight;
+  color: %palette-link;
+}
+
+#browser_songs::item {
+  padding: 4px 2px;
+}
+
+#browser_songs::item:hover {
+  background-color: %palette-alternate-base;
+}
+
+/* Pill buttons: Play in the accent, the rest quiet. */
+
+QPushButton[primary="true"],
+QPushButton[pill="true"] {
+  border: none;
+  border-radius: 14px;
+  min-height: 28px;
+  padding: 0px 18px;
+  font-weight: 600;
+}
+
+QPushButton[primary="true"] {
+  background-color: %palette-link;
+  color: %palette-base;
+}
+
+QPushButton[primary="true"]:hover {
+  background-color: %palette-link-lighter;
+}
+
+QPushButton[pill="true"] {
+  background-color: %palette-button;
+  color: %palette-text;
+}
+
+QPushButton[pill="true"]:hover {
+  background-color: %palette-mid;
+}
+
+QPushButton[link="true"] {
+  border: none;
+  background: transparent;
+  color: %palette-placeholdertext;
+  padding: 2px 0px;
+  text-align: left;
+}
+
+QPushButton[link="true"]:hover {
+  color: %palette-text;
+}
+
+/* The bar above the playlist: its name and what to do with it. */
+
+#playlist_title_bar {
+  background-color: %palette-base;
+}
+
+#playlist_title_bar QLabel[playlist_title="true"] {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+#library_browser QLabel[section_title="true"] {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Audiobooks and podcasts: the book you're partway through, how far you've
+   got, and the filters over the shelf. */
+
+#listening_hero {
+  background-color: %palette-alternate-base;
+  border-radius: 12px;
+}
+
+QProgressBar#listening_progress {
+  background-color: %palette-mid;
+  border: none;
+  border-radius: 3px;
+}
+
+QProgressBar#listening_progress::chunk {
+  background-color: %palette-link;
+  border-radius: 3px;
+}
+
+QPushButton[filter="true"] {
+  border: none;
+  border-radius: 13px;
+  min-height: 26px;
+  padding: 0px 12px;
+  background: transparent;
+  color: %palette-placeholdertext;
+  font-weight: 600;
+}
+
+QPushButton[filter="true"]:hover {
+  color: %palette-text;
+}
+
+QPushButton[filter="true"]:checked {
+  background-color: %palette-button;
+  color: %palette-text;
+}
+
+/* Speed and the sleep timer open menus; the pill says so without an arrow. */
+
+QToolButton[sequence="true"]::menu-indicator {
+  image: none;
+  width: 0px;
 }

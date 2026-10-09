@@ -19,12 +19,15 @@
 #define TRACKSELECTIONDIALOG_H
 
 #include <QDialog>
+#include <QSet>
 
 #include "config.h"
 #include "core/song.h"
 
 class Ui_TrackSelectionDialog;
+class QLabel;
 class QTreeWidget;
+class QTreeWidgetItem;
 
 class TrackSelectionDialog : public QDialog {
   Q_OBJECT
@@ -56,6 +59,7 @@ class TrackSelectionDialog : public QDialog {
   void PreviousSong();
 
   void ResultSelected();
+  void ChangeToggled(QTreeWidgetItem* item, int column);
   void AcceptFinished();
 
  private:
@@ -69,7 +73,25 @@ class TrackSelectionDialog : public QDialog {
     QString progress_string_;
     SongList results_;
     int selected_result_;
+    // Fields the person unticked: these keep the file's own value.
+    QSet<int> skipped_fields_;
   };
+
+  // The tags a lookup suggests, in the order the Changes list shows them.
+  enum Field {
+    Field_Title = 0,
+    Field_Artist,
+    Field_Album,
+    Field_Track,
+    Field_Year,
+    FieldCount
+  };
+  static QString FieldName(int field);
+  static QString FieldValue(const Song& song, int field);
+  // `original` with the suggestion's value for each field not skipped.
+  static Song Merge(const Song& original, const Song& suggestion,
+                    const QSet<int>& skipped);
+  void UpdateChanges();
 
   void AddDivider(const QString& text, QTreeWidget* parent) const;
   void AddSong(const Song& song, int result_index, QTreeWidget* parent) const;
@@ -82,6 +104,8 @@ class TrackSelectionDialog : public QDialog {
 
   QPushButton* previous_button_;
   QPushButton* next_button_;
+  QLabel* changes_label_;
+  QTreeWidget* changes_;
 
   bool save_on_close_;
 };

@@ -25,6 +25,7 @@
 
 class QMenu;
 
+class QToolButton;
 class Ui_PlaylistSequence;
 
 class PlaylistSequence : public QWidget {
@@ -57,6 +58,17 @@ class PlaylistSequence : public QWidget {
   QMenu* repeat_menu() const { return repeat_menu_; }
   QMenu* shuffle_menu() const { return shuffle_menu_; }
 
+  // Shows each button's current mode as a label beside its icon ("Shuffle
+  // all", "Repeat album") instead of an icon alone, and lets the window's
+  // stylesheet style them, as in the player bar.
+  void SetLabelled(bool labelled);
+
+  // The two buttons, for a layout that places them apart (the player bar puts
+  // shuffle before the transport and repeat after it). They keep working
+  // wherever they're put; this widget still owns their menus and state.
+  QToolButton* shuffle_button() const;
+  QToolButton* repeat_button() const;
+
  public slots:
   void SetRepeatMode(PlaylistSequence::RepeatMode mode);
   void SetShuffleMode(PlaylistSequence::ShuffleMode mode);
@@ -77,6 +89,7 @@ class PlaylistSequence : public QWidget {
   void Save();
   static QIcon AddDesaturatedIcon(const QIcon& icon);
   static QPixmap DesaturatedPixmap(const QPixmap& pixmap);
+  void UpdateLabels();
 
  private:
   Ui_PlaylistSequence* ui_;
@@ -86,6 +99,8 @@ class PlaylistSequence : public QWidget {
   QMenu* shuffle_menu_;
 
   bool loading_;
+  bool labelled_;
+  QString unlabelled_style_sheet_;
   RepeatMode repeat_mode_;
   ShuffleMode shuffle_mode_;
   bool dynamic_;

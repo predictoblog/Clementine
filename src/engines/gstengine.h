@@ -96,7 +96,9 @@ class GstEngine : public Engine::Base, public BufferConsumer {
 
   OutputDetailsList GetOutputsList() const;
 
-  GstElement* CreateElement(const QString& factoryName, GstElement* bin = 0);
+  // An element that's missing is reported as an error unless optional.
+  GstElement* CreateElement(const QString& factoryName, GstElement* bin = 0,
+                            bool required = true);
 
   // BufferConsumer
   void ConsumeBuffer(GstBuffer* buffer, int pipeline_id);
@@ -128,6 +130,7 @@ class GstEngine : public Engine::Base, public BufferConsumer {
 
   /** Set Stereo balance, range -1.0f..1.0f */
   void SetStereoBalance(float value);
+  void SetPlaybackRate(double rate) override;
 
   void ReloadSettings();
 
@@ -226,6 +229,7 @@ class GstEngine : public Engine::Base, public BufferConsumer {
   int equalizer_preamp_;
   QList<int> equalizer_gains_;
   float stereo_balance_;
+  double playback_rate_;
 
   bool rg_enabled_;
   int rg_mode_;

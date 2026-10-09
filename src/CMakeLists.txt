@@ -107,6 +107,7 @@ set(SOURCES
   core/networkproxyfactory.cpp
   core/organise.cpp
   core/organiseformat.cpp
+  core/listening.cpp
   core/player.cpp
   core/qtfslistener.cpp
   core/qxtglobalshortcutbackend.cpp
@@ -227,6 +228,8 @@ set(SOURCES
 
   library/groupbydialog.cpp
   library/library.cpp
+  library/audiobooksview.cpp
+  library/librarybrowser.cpp
   library/librarybackend.cpp
   library/librarydirectorymodel.cpp
   library/libraryfilterwidget.cpp
@@ -280,6 +283,7 @@ set(SOURCES
   playlist/playlistmanager.cpp
   playlist/playlistsaveoptionsdialog.cpp
   playlist/playlistsequence.cpp
+  playlist/playlisttitlebar.cpp
   playlist/playlisttabbar.cpp
   playlist/playlistundocommands.cpp
   playlist/playlistview.cpp
@@ -318,6 +322,7 @@ set(SOURCES
   internet/podcasts/podcastinfodialog.cpp
   internet/podcasts/podcastinfowidget.cpp
   internet/podcasts/podcastservice.cpp
+  internet/podcasts/podcastsview.cpp
   internet/podcasts/podcastservicemodel.cpp
   internet/podcasts/podcastsettingspage.cpp
   internet/podcasts/podcastparser.cpp
@@ -393,10 +398,14 @@ set(SOURCES
   ui/networkproxysettingspage.cpp
   ui/networkremotesettingspage.cpp
   ui/notificationssettingspage.cpp
+  ui/nowplayingpanel.cpp
   ui/organisedialog.cpp
   ui/organiseerrordialog.cpp
   ui/playbacksettingspage.cpp
+  ui/playerbar.cpp
   ui/qtsystemtrayicon.cpp
+  ui/miniplayer.cpp
+  ui/queuepanel.cpp
   ui/screensaver.cpp
   ui/screenshottaker.cpp
   ui/settingscategory.cpp
@@ -479,6 +488,7 @@ set(HEADERS
   core/mimedata.h
   core/network.h
   core/organise.h
+  core/listening.h
   core/player.h
   core/qtfslistener.h
   core/songloader.h
@@ -574,6 +584,8 @@ set(HEADERS
 
   library/groupbydialog.h
   library/library.h
+  library/audiobooksview.h
+  library/librarybrowser.h
   library/librarybackend.h
   library/librarydirectorymodel.h
   library/libraryfilterwidget.h
@@ -618,6 +630,7 @@ set(HEADERS
   playlist/playlistmanager.h
   playlist/playlistsaveoptionsdialog.h
   playlist/playlistsequence.h
+  playlist/playlisttitlebar.h
   playlist/playlisttabbar.h
   playlist/playlistview.h
   playlist/queue.h
@@ -651,6 +664,7 @@ set(HEADERS
   internet/podcasts/podcastinfodialog.h
   internet/podcasts/podcastinfowidget.h
   internet/podcasts/podcastservice.h
+  internet/podcasts/podcastsview.h
   internet/podcasts/podcastservicemodel.h
   internet/podcasts/podcastsettingspage.h
   internet/podcasts/podcastupdater.h
@@ -713,10 +727,14 @@ set(HEADERS
   ui/networkproxysettingspage.h
   ui/networkremotesettingspage.h
   ui/notificationssettingspage.h
+  ui/nowplayingpanel.h
   ui/organisedialog.h
   ui/organiseerrordialog.h
   ui/playbacksettingspage.h
+  ui/playerbar.h
   ui/qtsystemtrayicon.h
+  ui/miniplayer.h
+  ui/queuepanel.h
   ui/screenshottaker.h
   ui/settingscategory.h
   ui/settingsdialog.h

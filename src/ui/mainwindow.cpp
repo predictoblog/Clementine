@@ -25,18 +25,23 @@
 #include <QLinearGradient>
 #include <QList>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
+#include <QRandomGenerator>
 #include <QSettings>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QToolButton>
 #include <QUndoStack>
 #include <QtDebug>
 #include <cmath>
 #include <memory>
+#include <tuple>
 
 #include "core/appearance.h"
 #include "core/application.h"
@@ -46,6 +51,7 @@
 #include "core/deletefiles.h"
 #include "core/filesystemmusicstorage.h"
 #include "core/globalshortcuts.h"
+#include "core/listening.h"
 #include "core/logging.h"
 #include "core/mac_startup.h"
 #include "core/mergedproxymodel.h"
@@ -74,9 +80,12 @@
 #include "internet/internetradio/savedradio.h"
 #include "internet/magnatune/magnatuneservice.h"
 #include "internet/podcasts/podcastservice.h"
+#include "internet/podcasts/podcastsview.h"
+#include "library/audiobooksview.h"
 #include "library/groupbydialog.h"
 #include "library/library.h"
 #include "library/librarybackend.h"
+#include "library/librarybrowser.h"
 #include "library/librarydirectorymodel.h"
 #include "library/libraryfilterwidget.h"
 #include "library/libraryviewcontainer.h"
@@ -87,9 +96,11 @@
 #include "playlist/playlistlistcontainer.h"
 #include "playlist/playlistmanager.h"
 #include "playlist/playlistsequence.h"
+#include "playlist/playlisttitlebar.h"
 #include "playlist/playlistview.h"
 #include "playlist/queue.h"
 #include "playlist/queuemanager.h"
+#include "playlist/songmimedata.h"
 #include "playlist/songplaylistitem.h"
 #include "playlistparsers/playlistparser.h"
 #include "ui_mainwindow.h"
@@ -110,9 +121,13 @@
 #include "ui/equalizer.h"
 #include "ui/iconloader.h"
 #include "ui/lovedialog.h"
+#include "ui/miniplayer.h"
+#include "ui/nowplayingpanel.h"
 #include "ui/organisedialog.h"
 #include "ui/organiseerrordialog.h"
+#include "ui/playerbar.h"
 #include "ui/qtsystemtrayicon.h"
+#include "ui/queuepanel.h"
 #include "ui/settingsdialog.h"
 #include "ui/streamdetailsdialog.h"
 #include "ui/systemtrayicon.h"
@@ -148,6 +163,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #ifdef Q_OS_DARWIN
 // Non exported mac-specific function.
@@ -184,6 +200,22 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
       device_view_(device_view_container_->view()),
       song_info_view_(new SongInfoView(this)),
       artist_info_view_(new ArtistInfoView(this)),
+      player_bar_(nullptr),
+      centre_stack_(nullptr),
+      library_browser_(nullptr),
+      now_playing_source_(new QWidget(this)),
+      albums_source_(new QWidget(this)),
+      songs_source_(new QWidget(this)),
+      attention_source_(new QWidget(this)),
+      podcasts_source_(new QWidget(this)),
+      audiobooks_source_(new QWidget(this)),
+      side_column_width_(260),
+      panel_width_(280),
+      now_playing_panel_(nullptr),
+      queue_panel_(nullptr),
+      playlist_title_bar_(nullptr),
+      syncing_sources_(false),
+      action_show_now_playing_panel_(nullptr),
       settings_dialog_(std::bind(&MainWindow::CreateSettingsDialog, this)),
       add_stream_dialog_([=]() {
         AddStreamDialog* add_stream_dialog = new AddStreamDialog;
@@ -237,6 +269,7 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
 
   // Initialise the UI
   ui_->setupUi(this);
+  SetUpLayout();
 
   ui_->multi_loading_indicator->SetTaskManager(app_->task_manager());
   ui_->now_playing->SetApplication(app_);
@@ -248,12 +281,7 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   // Where to play, next to the volume. Hidden while there's nowhere else.
   EngineRouter* router = qobject_cast<EngineRouter*>(app_->player()->engine());
   if (router) {
-    QBoxLayout* layout =
-        qobject_cast<QBoxLayout*>(ui_->volume->parentWidget()->layout());
-    if (layout) {
-      layout->insertWidget(layout->indexOf(ui_->volume),
-                           new OutputButton(router, this));
-    }
+    player_bar_->AddTrailingWidget(new OutputButton(router, this));
   }
 
   // Initialise the global search widget
@@ -270,19 +298,62 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   // Set up the settings group early
   settings_.beginGroup(kSettingsGroup);
 
-  // Add tabs to the fancy tab widget
+  // The source list. Song info and Artist info live in the Now playing
+  // panel instead (see SetUpLayout()).
   ui_->tabs->addTab(global_search_view_,
                     IconLoader::Load("search", IconLoader::Base),
                     tr("Search", "Global search settings dialog title."));
-  ui_->tabs->addTab(library_view_,
-                    IconLoader::Load("folder-sound", IconLoader::Base),
-                    tr("Library"));
-  ui_->tabs->addTab(file_view_,
-                    IconLoader::Load("document-open", IconLoader::Base),
-                    tr("Files"));
-  ui_->tabs->addTab(playlist_list_,
+  ui_->tabs->addTab(now_playing_source_,
                     IconLoader::Load("view-media-playlist", IconLoader::Base),
-                    tr("Playlists"));
+                    tr("Now playing"));
+  ui_->tabs->addSection(tr("Library"));
+  ui_->tabs->addTab(albums_source_,
+                    IconLoader::Load("x-clementine-album", IconLoader::Base),
+                    tr("Albums"));
+  ui_->tabs->addTab(songs_source_,
+                    IconLoader::Load("folder-sound", IconLoader::Base),
+                    tr("Songs"));
+  ui_->tabs->addTab(attention_source_,
+                    IconLoader::Load("dialog-warning", IconLoader::Base),
+                    tr("Needs attention"));
+  ui_->tabs->addTab(podcasts_source_,
+                    IconLoader::Load("podcast", IconLoader::Base),
+                    tr("Podcasts"));
+  ui_->tabs->addTab(
+      audiobooks_source_,
+      IconLoader::Load("x-clementine-audiobook", IconLoader::Base),
+      tr("Audiobooks"));
+  // The classic library tree, beside the playlist: for building a playlist
+  // by hand, dragging songs across.
+  ui_->tabs->addTab(library_view_,
+                    IconLoader::Load("view-choose", IconLoader::Base),
+                    tr("Library"));
+  ui_->tabs->addTab(file_view_, IconLoader::Load("folder", IconLoader::Base),
+                    tr("Files"));
+  // Lists that keep themselves up to date.
+  ui_->tabs->addSection(tr("Smart views"));
+  const QList<std::tuple<LibraryBrowser::SmartView, QString, QString>> smart = {
+      {LibraryBrowser::Smart_RecentlyAdded, "list-add", tr("Recently added")},
+      {LibraryBrowser::Smart_MostPlayed, "media-playlist-repeat",
+       tr("Most played")},
+      {LibraryBrowser::Smart_RecentlyPlayed, "edit-undo",
+       tr("Recently played")},
+      {LibraryBrowser::Smart_Favorites, "rate-enabled", tr("Favorites")},
+  };
+  for (const auto& view : smart) {
+    QWidget* page = new QWidget(this);
+    smart_sources_[page] = std::get<0>(view);
+    ui_->tabs->addTab(page,
+                      IconLoader::Load(std::get<1>(view), IconLoader::Base),
+                      std::get<2>(view));
+  }
+  // Each open playlist gets a row here as it opens (AddPlaylistSource()),
+  // above the saved ones.
+  ui_->tabs->addSection(tr("Playlists"));
+  ui_->tabs->addTab(playlist_list_,
+                    IconLoader::Load("document-open", IconLoader::Base),
+                    tr("All playlists"));
+  ui_->tabs->addSection(tr("Elsewhere"));
   ui_->tabs->addTab(internet_view_,
                     IconLoader::Load("applications-internet", IconLoader::Base),
                     tr("Internet"));
@@ -290,21 +361,13 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
       device_view_container_,
       IconLoader::Load("multimedia-player-ipod-mini-blue", IconLoader::Base),
       tr("Devices"));
-  ui_->tabs->addSpacer();
-  ui_->tabs->addTab(song_info_view_,
-                    IconLoader::Load("view-media-lyrics", IconLoader::Base),
-                    tr("Song info"));
-  ui_->tabs->addTab(artist_info_view_,
-                    IconLoader::Load("x-clementine-artist", IconLoader::Base),
-                    tr("Artist info"));
 
-  // Add the now playing widget to the fancy tab widget
-  ui_->tabs->addBottomWidget(ui_->now_playing);
-
-  ui_->tabs->setBackgroundPixmap(QPixmap(":/sidebar_background.png"));
+  now_playing_panel_->SetPage(NowPlayingPanel::Page_Lyrics, song_info_view_);
+  now_playing_panel_->SetPage(NowPlayingPanel::Page_Artist, artist_info_view_);
 
   // Do this only after all default tabs have been added
   ui_->tabs->loadSettings(settings_);
+  SetUpViewMenu();
 
   track_position_timer_->setInterval(kTrackPositionUpdateTimeMs);
   connect(track_position_timer_, SIGNAL(timeout()),
@@ -563,6 +626,7 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   next_menu->addAction(ui_->action_next_track);
   next_menu->addAction(ui_->action_next_album);
   ui_->forward_button->setMenu(next_menu);
+  player_bar_->next_button()->setMenu(next_menu);
 
   // Stop actions
   QMenu* stop_menu = new QMenu(this);
@@ -940,8 +1004,6 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   ui_->now_playing->set_ideal_height(ui_->status_bar->sizeHint().height() +
                                      ui_->player_controls->sizeHint().height());
   connect(app_->player(), SIGNAL(Stopped()), ui_->now_playing, SLOT(Stopped()));
-  connect(ui_->now_playing, SIGNAL(ShowAboveStatusBarChanged(bool)),
-          SLOT(NowPlayingWidgetPositionChanged(bool)));
   connect(ui_->action_hypnotoad, SIGNAL(toggled(bool)), ui_->now_playing,
           SLOT(AllHail(bool)));
   connect(ui_->action_kittens, SIGNAL(toggled(bool)), ui_->now_playing,
@@ -952,7 +1014,12 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
     connect(ui_->action_console, SIGNAL(triggered()), SLOT(ShowConsole()));
   else
     ui_->action_console->setVisible(false);
-  NowPlayingWidgetPositionChanged(ui_->now_playing->show_above_status_bar());
+  // The player bar and the Now playing panel.
+  player_bar_->SetApplication(app_);
+  connect(app_->playlist_manager(), SIGNAL(CurrentSongChanged(Song)),
+          now_playing_panel_, SLOT(SetSong(Song)));
+  connect(app_->player(), &Player::Stopped, now_playing_panel_,
+          [this]() { now_playing_panel_->SetSong(Song()); });
 
   // The theme is applied in main(), before any widgets are constructed - see
   // the comment there for why it can't wait until here.
@@ -960,9 +1027,31 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   css_loader->SetStyleSheet(this, ":mainwindow.css");
 
   // Load playlists
+  // A row in the source list for each open playlist, from the ones Init()
+  // restores onwards.
+  PlaylistManager* manager = app_->playlist_manager();
+  connect(manager, &PlaylistManager::PlaylistAdded, this,
+          [this](int id, const QString& name, bool) {
+            AddPlaylistSource(id, name);
+          });
+  connect(manager, &PlaylistManager::PlaylistClosed, this,
+          &MainWindow::RemovePlaylistSource);
+  connect(manager, &PlaylistManager::PlaylistDeleted, this,
+          &MainWindow::RemovePlaylistSource);
+  connect(manager, &PlaylistManager::PlaylistRenamed, this,
+          [this](int id, const QString& name) {
+            const int index = PlaylistSourceIndex(id);
+            if (index >= 0) ui_->tabs->setTabText(index, name);
+          });
+  connect(manager, &PlaylistManager::CurrentChanged, this,
+          &MainWindow::CurrentPlaylistChanged);
+
   app_->playlist_manager()->Init(app_->library_backend(),
                                  app_->playlist_backend(),
                                  ui_->playlist_sequence, ui_->playlist);
+  // Needs the playlists and their shuffle setting, so after Init().
+  queue_panel_->SetApplication(app_);
+  playlist_title_bar_->SetApplication(app_);
 
   // This connection must be done after the playlists have been initialized.
   connect(this, SIGNAL(StopAfterToggled(bool)), osd_,
@@ -1007,15 +1096,48 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
     setWindowState(windowState() | Qt::WindowMaximized);
   }
 
+  // Saved under new names since the Now playing panel joined the splitter
+  // and the source list gained sections, so the old layout's sizes and tab
+  // index aren't applied to the new one.
   if (!ui_->splitter->restoreState(
-          settings_.value("splitter_state").toByteArray())) {
-    ui_->splitter->setSizes(QList<int>() << 300 << width() - 300);
+          settings_.value("splitter_state2").toByteArray())) {
+    const int sidebar = FancyTabWidget::kSourceListWidth + 240;
+    const int panel = 280;
+    ui_->splitter->setSizes(QList<int>()
+                            << sidebar << width() - sidebar - panel << panel);
   }
-  ui_->tabs->setCurrentIndex(
-      settings_.value("current_tab", 1 /* Library tab */).toInt());
-  FancyTabWidget::Mode default_mode = FancyTabWidget::Mode_LargeSidebar;
+
+  FancyTabWidget::Mode default_mode = FancyTabWidget::Mode_SourceList;
   ui_->tabs->SetMode(
-      FancyTabWidget::Mode(settings_.value("tab_mode", default_mode).toInt()));
+      FancyTabWidget::Mode(settings_.value("tab_mode2", default_mode).toInt()));
+
+  // After the sidebar's style, which decides how wide the source list is.
+  side_column_width_ =
+      settings_.value("side_column_width", side_column_width_).toInt();
+  connect(ui_->tabs, &FancyTabWidget::CurrentChanged, this,
+          &MainWindow::SourceChanged);
+  // Another sidebar style is another width for the source list.
+  connect(ui_->tabs, &FancyTabWidget::ModeChanged, this,
+          [this]() { SourceChanged(); });
+  const int current_tab =
+      ui_->tabs->indexOfFixed(settings_.value("current_tab4", -1).toInt());
+  if (current_tab >= 0 && ui_->tabs->isTabEnabled(current_tab)) {
+    ui_->tabs->setCurrentIndex(current_tab);
+  } else {
+    ui_->tabs->setCurrentPage(albums_source_);
+  }
+  SourceChanged();
+
+  const bool show_panel =
+      settings_.value("show_now_playing_panel", true).toBool();
+  action_show_now_playing_panel_->setChecked(show_panel);
+  now_playing_panel_->setVisible(show_panel);
+  now_playing_panel_->SetCurrentPage(NowPlayingPanel::Page(
+      settings_.value("now_playing_panel_page", NowPlayingPanel::Page_Lyrics)
+          .toInt()));
+  connect(
+      now_playing_panel_, &NowPlayingPanel::CurrentPageChanged, this,
+      [this](int page) { settings_.setValue("now_playing_panel_page", page); });
   file_view_->SetPath(
       settings_.value("file_path", QDir::homePath()).toString());
 
@@ -1093,7 +1215,10 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   qLog(Debug) << "Started";
 }
 
-MainWindow::~MainWindow() { delete ui_; }
+MainWindow::~MainWindow() {
+  delete mini_player_;
+  delete ui_;
+}
 
 void MainWindow::ReloadSettings() {
 #ifndef Q_OS_DARWIN
@@ -1286,6 +1411,7 @@ void MainWindow::ScrobblingEnabledChanged(bool value) {
 void MainWindow::LastFMButtonVisibilityChanged(bool value) {
   ui_->action_love->setVisible(value);
   ui_->last_fm_controls->setVisible(value);
+  player_bar_->love_button()->setVisible(value);
   if (tray_icon_) tray_icon_->LastFMButtonVisibilityChanged(value);
 }
 
@@ -1343,9 +1469,20 @@ void MainWindow::SaveGeometry(QSettings* settings) {
   if (!was_maximized_) {
     settings->setValue("geometry", saveGeometry());
   }
-  settings->setValue("splitter_state", ui_->splitter->saveState());
-  settings->setValue("current_tab", ui_->tabs->currentIndex());
-  settings->setValue("tab_mode", ui_->tabs->mode());
+  settings->setValue("splitter_state2", ui_->splitter->saveState());
+  // A playlist's own row isn't there next time: come back to Now playing.
+  int current_tab = ui_->tabs->fixedIndex(ui_->tabs->currentIndex());
+  if (current_tab < 0) {
+    for (int i = 0; i < ui_->tabs->count(); ++i) {
+      QWidget* wrapper = ui_->tabs->widget(i);
+      if (wrapper == now_playing_source_ ||
+          wrapper->isAncestorOf(now_playing_source_)) {
+        current_tab = ui_->tabs->fixedIndex(i);
+      }
+    }
+  }
+  settings->setValue("current_tab4", current_tab);
+  settings->setValue("tab_mode2", ui_->tabs->mode());
 
   // Leaving this here for now
   ui_->tabs->saveSettings(settings);
@@ -2437,6 +2574,486 @@ void MainWindow::AddFilesToTranscoder() {
   ShowTranscodeDialog();
 }
 
+void MainWindow::SetUpLayout() {
+  // The player bar along the bottom, built from the controls the window
+  // already has: the transport actions, the seek bar, the volume, and the
+  // shuffle and repeat buttons.
+  player_bar_ = new PlayerBar(this);
+  player_bar_->SetTransportActions(ui_->action_previous_track,
+                                   ui_->action_play_pause,
+                                   ui_->action_next_track, ui_->action_love);
+  ui_->playlist_sequence->SetLabelled(true);
+  player_bar_->SetSequenceButtons(ui_->playlist_sequence->shuffle_button(),
+                                  ui_->playlist_sequence->repeat_button());
+  ui_->playlist_sequence->hide();
+  player_bar_->SetTrackSlider(ui_->track_slider);
+  // Audiobooks and podcasts: resume, speed, skip and the sleep timer.
+  listening_ = new ListeningController(app_, this);
+  player_bar_->SetListening(listening_);
+
+  ui_->analyzer->setFixedWidth(96);
+  player_bar_->AddTrailingWidget(ui_->analyzer);
+
+  action_show_now_playing_panel_ =
+      new QAction(IconLoader::Load("view-media-lyrics", IconLoader::Base),
+                  tr("Now playing panel"), this);
+  action_show_now_playing_panel_->setCheckable(true);
+  action_show_now_playing_panel_->setToolTip(
+      tr("Show or hide the Now playing panel: lyrics, the artist, details"));
+  // What plays next: the panel's Queue tab, and back again.
+  QToolButton* queue_button = new QToolButton(player_bar_);
+  queue_button->setIcon(
+      IconLoader::Load("view-media-playlist", IconLoader::Base));
+  queue_button->setToolTip(tr("Show what plays next"));
+  queue_button->setAutoRaise(true);
+  queue_button->setIconSize(QSize(18, 18));
+  connect(queue_button, &QToolButton::clicked, this, [this]() {
+    const bool showing =
+        now_playing_panel_->isVisible() &&
+        now_playing_panel_->current_page() == NowPlayingPanel::Page_Queue;
+    if (showing) {
+      now_playing_panel_->SetCurrentPage(NowPlayingPanel::Page_Lyrics);
+    } else {
+      action_show_now_playing_panel_->setChecked(true);
+      now_playing_panel_->SetCurrentPage(NowPlayingPanel::Page_Queue);
+    }
+  });
+  player_bar_->AddTrailingWidget(queue_button);
+
+  QToolButton* panel_button = new QToolButton(player_bar_);
+  panel_button->setDefaultAction(action_show_now_playing_panel_);
+  panel_button->setAutoRaise(true);
+  panel_button->setIconSize(QSize(18, 18));
+  player_bar_->AddTrailingWidget(panel_button);
+
+  ui_->volume->SetFlat(true);
+  player_bar_->SetVolume(ui_->volume);
+  ui_->centralWidget->layout()->addWidget(player_bar_);
+
+  // The playlist's summary and the scrobbling toggle stay as a slim footer
+  // under the playlist; the old controls strip they shared goes.
+  playlist_title_bar_ = new PlaylistTitleBar(ui_->playlist_layout);
+  qobject_cast<QBoxLayout*>(ui_->playlist_layout->layout())
+      ->insertWidget(0, playlist_title_bar_);
+  ui_->status_bar->setParent(ui_->playlist_layout);
+  ui_->playlist_layout->layout()->addWidget(ui_->status_bar);
+  ui_->player_controls_container->hide();
+  ui_->line_6->hide();
+
+  // The middle of the window: the playlist, or the library's browsing pages.
+  centre_stack_ = new QStackedWidget(this);
+  ui_->splitter->insertWidget(1, centre_stack_);
+  centre_stack_->addWidget(ui_->playlist_layout);
+  library_browser_ = new LibraryBrowser(app_, this);
+  centre_stack_->addWidget(library_browser_);
+  connect(library_browser_, &LibraryBrowser::PlaySongs, this,
+          &MainWindow::PlayFromBrowser);
+  connect(library_browser_, &LibraryBrowser::QueueSongs, this,
+          &MainWindow::QueueFromBrowser);
+  connect(library_browser_, &LibraryBrowser::EditSongs, this,
+          [this](const SongList& songs) {
+            SongList editable;
+            for (const Song& song : songs) {
+              if (song.IsEditable()) editable << song;
+            }
+            if (editable.isEmpty()) return;
+            edit_tag_dialog_->SetSongs(editable);
+            edit_tag_dialog_->show();
+          });
+  connect(library_browser_, &LibraryBrowser::FixTags, this,
+          [this](const SongList& songs) {
+            autocomplete_tag_items_.clear();
+            SongList editable;
+            for (const Song& song : songs) {
+              if (song.IsEditable()) editable << song;
+            }
+            AutoCompleteTagsFor(editable);
+          });
+  connect(library_browser_, &LibraryBrowser::FindCovers, this,
+          &MainWindow::ShowCoverManager);
+
+  audiobooks_view_ = new AudiobooksView(app_, listening_, this);
+  centre_stack_->addWidget(audiobooks_view_);
+  library_browser_->SetAudiobookFolders(listening_->audiobook_folders());
+  connect(
+      listening_, &ListeningController::AudiobookFoldersChanged, this,
+      [this]() {
+        library_browser_->SetAudiobookFolders(listening_->audiobook_folders());
+      });
+  connect(library_browser_, &LibraryBrowser::AudiobooksLoaded, audiobooks_view_,
+          &AudiobooksView::SetSongs);
+  connect(audiobooks_view_, &AudiobooksView::PlayBook, this,
+          [this](const SongList& chapters, int start) {
+            PlayInOwnPlaylist("audiobooks_playlist_id", tr("Audiobooks"),
+                              chapters, start);
+          });
+
+  podcasts_view_ = new PodcastsView(app_, listening_, this);
+  centre_stack_->addWidget(podcasts_view_);
+  connect(podcasts_view_, &PodcastsView::PlayEpisodes, this,
+          [this](const SongList& episodes, int start) {
+            PlayInOwnPlaylist("podcasts_playlist_id", tr("Podcasts"), episodes,
+                              start);
+          });
+  connect(library_browser_, &LibraryBrowser::AttentionCountChanged, this,
+          [this](int count) {
+            ui_->tabs->setTabBadge(
+                attention_source_,
+                count > 0 ? QString::number(count) : QString());
+          });
+
+  // The Now playing panel on the right, with the cover that used to sit at
+  // the bottom of the sidebar.
+  now_playing_panel_ = new NowPlayingPanel(this);
+  now_playing_panel_->SetCoverWidget(ui_->now_playing);
+  queue_panel_ = new QueuePanel(this);
+  now_playing_panel_->SetPage(NowPlayingPanel::Page_Queue, queue_panel_);
+  ui_->splitter->addWidget(now_playing_panel_);
+  ui_->splitter->setStretchFactor(0, 0);
+  ui_->splitter->setStretchFactor(1, 1);
+  ui_->splitter->setStretchFactor(2, 0);
+
+  connect(action_show_now_playing_panel_, &QAction::toggled, this,
+          &MainWindow::SetNowPlayingPanelVisible);
+  connect(now_playing_panel_, &NowPlayingPanel::VisualizationsRequested, this,
+          [this]() {
+            if (ui_->action_visualisations->isEnabled()) {
+              ui_->action_visualisations->trigger();
+            }
+          });
+  connect(now_playing_panel_, &NowPlayingPanel::CloseRequested, this,
+          [this]() { action_show_now_playing_panel_->setChecked(false); });
+  connect(player_bar_, &PlayerBar::NowPlayingClicked, this,
+          [this]() { action_show_now_playing_panel_->setChecked(true); });
+}
+
+void MainWindow::SourceChanged() {
+  QWidget* wrapper = ui_->tabs->currentWidget();
+  auto is = [wrapper](QWidget* page) {
+    return wrapper && (wrapper == page || wrapper->isAncestorOf(page));
+  };
+
+  QWidget* smart = nullptr;
+  for (QWidget* page : smart_sources_.keys()) {
+    if (is(page)) smart = page;
+  }
+
+  if (is(albums_source_) || is(songs_source_) || is(attention_source_) ||
+      smart) {
+    if (smart) {
+      library_browser_->ShowSmart(
+          LibraryBrowser::SmartView(smart_sources_[smart]));
+    } else if (is(attention_source_)) {
+      library_browser_->ShowAttention();
+    } else if (is(songs_source_)) {
+      library_browser_->ShowSongs();
+    } else if (library_browser_->page() == LibraryBrowser::Page_Songs ||
+               library_browser_->page() == LibraryBrowser::Page_Attention ||
+               library_browser_->page() == LibraryBrowser::Page_Smart) {
+      library_browser_->ShowAlbums();
+    }
+    centre_stack_->setCurrentWidget(library_browser_);
+    SetSideColumnVisible(false);
+  } else if (is(audiobooks_source_)) {
+    centre_stack_->setCurrentWidget(audiobooks_view_);
+    SetSideColumnVisible(false);
+  } else if (is(podcasts_source_)) {
+    centre_stack_->setCurrentWidget(podcasts_view_);
+    SetSideColumnVisible(false);
+  } else if (is(now_playing_source_) || PlaylistSourcePage(wrapper)) {
+    // A playlist on its own, in the middle: the one playing, or the one
+    // picked.
+    PlaylistManager* manager = app_->playlist_manager();
+    const int id = is(now_playing_source_)
+                       ? manager->active_id()
+                       : playlist_sources_[PlaylistSourcePage(wrapper)];
+    // Before the playlists are loaded there's nothing to show yet, and an
+    // id that isn't a playlist would leave the view with none at all.
+    bool known = false;
+    for (Playlist* playlist : manager->GetAllPlaylists()) {
+      known = known || playlist->id() == id;
+    }
+    if (known && !syncing_sources_ && manager->current_id() != id) {
+      syncing_sources_ = true;
+      manager->SetCurrentPlaylist(id);
+      syncing_sources_ = false;
+    }
+    centre_stack_->setCurrentWidget(ui_->playlist_layout);
+    SetSideColumnVisible(false);
+  } else {
+    centre_stack_->setCurrentWidget(ui_->playlist_layout);
+    SetSideColumnVisible(true);
+  }
+}
+
+QWidget* MainWindow::PlaylistSourcePage(QWidget* wrapper) const {
+  if (!wrapper) return nullptr;
+  for (QWidget* page : playlist_sources_.keys()) {
+    if (wrapper == page || wrapper->isAncestorOf(page)) return page;
+  }
+  return nullptr;
+}
+
+int MainWindow::PlaylistSourceIndex(int id) const {
+  for (int i = 0; i < ui_->tabs->count(); ++i) {
+    QWidget* page = PlaylistSourcePage(ui_->tabs->widget(i));
+    if (page && playlist_sources_[page] == id) return i;
+  }
+  return -1;
+}
+
+void MainWindow::AddPlaylistSource(int id, const QString& name) {
+  if (PlaylistSourceIndex(id) >= 0) return;
+  // Above "All playlists", in the order they open.
+  int index = ui_->tabs->count();
+  for (int i = 0; i < ui_->tabs->count(); ++i) {
+    QWidget* wrapper = ui_->tabs->widget(i);
+    if (wrapper == playlist_list_ || wrapper->isAncestorOf(playlist_list_)) {
+      index = i;
+      break;
+    }
+  }
+  QWidget* page = new QWidget;
+  playlist_sources_[page] = id;
+  ui_->tabs->insertTransientTab(
+      index, page, IconLoader::Load("view-media-playlist", IconLoader::Base),
+      name);
+}
+
+void MainWindow::RemovePlaylistSource(int id) {
+  const int index = PlaylistSourceIndex(id);
+  if (index < 0) return;
+  QWidget* wrapper = ui_->tabs->widget(index);
+  playlist_sources_.remove(PlaylistSourcePage(wrapper));
+  if (ui_->tabs->currentIndex() == index) {
+    ui_->tabs->setCurrentPage(now_playing_source_);
+  }
+  ui_->tabs->removeTab(index);
+  wrapper->deleteLater();
+}
+
+void MainWindow::CurrentPlaylistChanged(Playlist* playlist) {
+  if (syncing_sources_ || !playlist) return;
+  // Showing a playlist on its own, and another becomes current (from the
+  // playlist's own tabs, say): show that one's row as picked.
+  QWidget* wrapper = ui_->tabs->currentWidget();
+  const bool on_now_playing =
+      wrapper && (wrapper == now_playing_source_ ||
+                  wrapper->isAncestorOf(now_playing_source_));
+  if (!on_now_playing && !PlaylistSourcePage(wrapper)) return;
+  if (on_now_playing &&
+      playlist->id() == app_->playlist_manager()->active_id()) {
+    return;
+  }
+
+  const int index = PlaylistSourceIndex(playlist->id());
+  if (index < 0 || index == ui_->tabs->currentIndex()) return;
+  syncing_sources_ = true;
+  ui_->tabs->setCurrentIndex(index);
+  syncing_sources_ = false;
+}
+
+void MainWindow::SetSideColumnVisible(bool visible) {
+  // The tab widget's own page area; the source list itself stays.
+  QStackedWidget* column = ui_->tabs->findChild<QStackedWidget*>(
+      QString(), Qt::FindDirectChildrenOnly);
+  if (!column) return;
+  const bool was_visible = !column->isHidden();
+
+  const int rail = ui_->tabs->tabBar()->sizeHint().width() + 1;
+  QList<int> sizes = ui_->splitter->sizes();
+  const bool laid_out = sizes.count() > 1 && sizes[0] > 0;
+
+  if (!visible) {
+    // Remember how wide the column was, to give it back.
+    if (was_visible && laid_out && sizes[0] > rail + 40) {
+      side_column_width_ = sizes[0] - rail;
+      settings_.setValue("side_column_width", side_column_width_);
+    }
+    if (laid_out && sizes.count() > 2 && sizes[2] > 0) {
+      panel_width_ = sizes[2];
+    }
+    column->hide();
+    // Pinned to the source list's width, so the splitter can't leave an
+    // empty column beside it, before the window is shown or after.
+    ui_->sidebar_layout->setMaximumWidth(rail);
+    if (laid_out && sizes[0] != rail) {
+      sizes[1] += sizes[0] - rail;
+      sizes[0] = rail;
+      ui_->splitter->setSizes(sizes);
+    }
+  } else {
+    column->show();
+    ui_->sidebar_layout->setMaximumWidth(QWIDGETSIZE_MAX);
+    if (!was_visible && laid_out) {
+      // Once the column's back in the layout, give it its width back, out
+      // of the middle's.
+      QTimer::singleShot(0, this, [this, rail]() {
+        QList<int> sizes = ui_->splitter->sizes();
+        int total = 0;
+        for (int size : sizes) total += size;
+        sizes[0] = rail + side_column_width_;
+        // The panel as it was, rather than whatever it was given meanwhile.
+        if (sizes.count() > 2 && sizes[2] > 0) sizes[2] = panel_width_;
+        sizes[1] =
+            qMax(200, total - sizes[0] - (sizes.count() > 2 ? sizes[2] : 0));
+        ui_->splitter->setSizes(sizes);
+      });
+    }
+  }
+}
+
+void MainWindow::PlayFromBrowser(const SongList& songs, int start,
+                                 bool shuffle) {
+  if (songs.isEmpty()) return;
+  SongList list = songs;
+  if (shuffle) {
+    std::shuffle(list.begin(), list.end(),
+                 std::mt19937(QRandomGenerator::global()->generate()));
+    start = 0;
+  }
+
+  // Browsing plays into a playlist of its own, so it never replaces one
+  // you've built by hand.
+  PlayInOwnPlaylist("browse_playlist_id", tr("Library"), list, start);
+}
+
+void MainWindow::PlayInOwnPlaylist(const QString& setting, const QString& name,
+                                   const SongList& songs, int start) {
+  if (songs.isEmpty()) return;
+  PlaylistManager* manager = app_->playlist_manager();
+  int id = settings_.value(setting, -1).toInt();
+  bool exists = false;
+  for (Playlist* playlist : manager->GetAllPlaylists()) {
+    exists = exists || playlist->id() == id;
+  }
+  if (!exists) {
+    id = manager->New(name);
+    settings_.setValue(setting, id);
+  }
+  manager->SetCurrentPlaylist(id);
+  manager->SetActivePlaylist(id);
+
+  SongMimeData* data = new SongMimeData;
+  data->backend = app_->library_backend();
+  data->songs = songs;
+  data->override_user_settings_ = true;
+  data->clear_first_ = true;
+  data->playlist_id = id;
+  AddToPlaylist(data);
+
+  app_->player()->PlayAt(qBound(0, start, songs.count() - 1), Engine::Manual,
+                         true);
+}
+
+void MainWindow::QueueFromBrowser(const SongList& songs) {
+  if (songs.isEmpty()) return;
+  SongMimeData* data = new SongMimeData;
+  data->backend = app_->library_backend();
+  data->songs = songs;
+  data->override_user_settings_ = true;
+  data->enqueue_now_ = true;
+  data->playlist_id = app_->playlist_manager()->active_id();
+  AddToPlaylist(data);
+}
+
+void MainWindow::SetNowPlayingPanelVisible(bool visible) {
+  now_playing_panel_->setVisible(visible);
+  settings_.setValue("show_now_playing_panel", visible);
+}
+
+void MainWindow::SetUpViewMenu() {
+  QMenu* view = new QMenu(tr("&View"), this);
+  menuBar()->insertMenu(ui_->menu_tools->menuAction(), view);
+
+  ui_->menu_tools->removeAction(ui_->action_toggle_show_sidebar);
+  view->addAction(ui_->action_toggle_show_sidebar);
+  view->addAction(action_show_now_playing_panel_);
+
+  // The mini player: a small window on top, in place of this one.
+  mini_player_ = new MiniPlayer(app_, nullptr);
+  mini_player_->SetActions(ui_->action_previous_track, ui_->action_play_pause,
+                           ui_->action_next_track);
+  QAction* mini = view->addAction(
+      IconLoader::Load("view-fullscreen", IconLoader::Base), tr("Mini player"));
+  mini->setShortcut(QKeySequence("Ctrl+Shift+M"));
+  connect(mini, &QAction::triggered, this, [this]() {
+    mini_player_->show();
+    mini_player_->raise();
+    hide();
+  });
+  connect(mini_player_, &MiniPlayer::ExpandRequested, this, [this]() {
+    mini_player_->hide();
+    show();
+    raise();
+    activateWindow();
+  });
+  view->addSeparator();
+
+  // Sources people may not use, which can be hidden from the source list.
+  QMenu* sources = view->addMenu(tr("Sidebar sources"));
+  struct Source {
+    QWidget* page;
+    QString name;
+    QString key;
+  };
+  const QList<Source> optional = {
+      {podcasts_source_, tr("Podcasts"), "podcasts"},
+      {audiobooks_source_, tr("Audiobooks"), "audiobooks"},
+      {playlist_list_, tr("All playlists"), "playlists"},
+      {file_view_, tr("Files"), "files"},
+      {internet_view_, tr("Internet"), "internet"},
+      {device_view_container_, tr("Devices"), "devices"},
+  };
+
+  auto index_of = [this](QWidget* page) {
+    for (int i = 0; i < ui_->tabs->count(); ++i) {
+      QWidget* wrapper = ui_->tabs->widget(i);
+      if (wrapper == page || wrapper->isAncestorOf(page)) return i;
+    }
+    return -1;
+  };
+
+  // A section's caption shows while anything under it does.
+  auto update_sections = [this]() {
+    for (int i = 0; i < ui_->tabs->count(); ++i) {
+      if (!ui_->tabs->isSection(i)) continue;
+      bool any = false;
+      for (int j = i + 1; j < ui_->tabs->count() && !ui_->tabs->isSection(j);
+           ++j) {
+        any = any || ui_->tabs->isTabVisible(j);
+      }
+      ui_->tabs->setTabVisible(i, any);
+    }
+  };
+
+  for (const Source& source : optional) {
+    QAction* action = sources->addAction(source.name);
+    action->setCheckable(true);
+    const QString setting = "show_source_" + source.key;
+    QWidget* page = source.page;
+
+    auto apply = [this, page, index_of, update_sections](bool shown) {
+      const int index = index_of(page);
+      if (index < 0) return;
+      if (!shown && ui_->tabs->currentIndex() == index) {
+        ui_->tabs->setCurrentPage(library_view_);
+      }
+      ui_->tabs->setTabVisible(index, shown);
+      update_sections();
+    };
+
+    const bool shown = settings_.value(setting, true).toBool();
+    action->setChecked(shown);
+    apply(shown);
+    connect(action, &QAction::toggled, this,
+            [this, apply, setting](bool shown) {
+              apply(shown);
+              settings_.setValue(setting, shown);
+            });
+  }
+}
+
 void MainWindow::ShowLibraryConfig() {
   settings_dialog_->OpenAtPage(SettingsDialog::Page_Library);
 }
@@ -2899,6 +3516,27 @@ void MainWindow::Exit() {
 }
 
 void MainWindow::AutoCompleteTags() {
+  // Get the selected songs and start fetching tags for them
+  SongList songs;
+  autocomplete_tag_items_.clear();
+  for (const QModelIndex& index :
+       ui_->playlist->view()->selectionModel()->selection().indexes()) {
+    if (index.column() != 0) continue;
+    int row =
+        app_->playlist_manager()->current()->proxy()->mapToSource(index).row();
+    PlaylistItemPtr item(app_->playlist_manager()->current()->item_at(row));
+    Song song = item->Metadata();
+
+    if (song.IsEditable()) {
+      songs << song;
+      autocomplete_tag_items_ << item;
+    }
+  }
+  AutoCompleteTagsFor(songs);
+}
+
+void MainWindow::AutoCompleteTagsFor(const SongList& songs) {
+  if (songs.isEmpty()) return;
   // Create the tag fetching stuff if it hasn't been already
   if (!tag_fetcher_) {
     tag_fetcher_.reset(new TagFetcher);
@@ -2917,23 +3555,6 @@ void MainWindow::AutoCompleteTags() {
             tag_fetcher_.get(), SLOT(Cancel()));
     connect(track_selection_dialog_.get(), SIGNAL(Error(QString)),
             SLOT(ShowErrorDialog(QString)));
-  }
-
-  // Get the selected songs and start fetching tags for them
-  SongList songs;
-  autocomplete_tag_items_.clear();
-  for (const QModelIndex& index :
-       ui_->playlist->view()->selectionModel()->selection().indexes()) {
-    if (index.column() != 0) continue;
-    int row =
-        app_->playlist_manager()->current()->proxy()->mapToSource(index).row();
-    PlaylistItemPtr item(app_->playlist_manager()->current()->item_at(row));
-    Song song = item->Metadata();
-
-    if (song.IsEditable()) {
-      songs << song;
-      autocomplete_tag_items_ << item;
-    }
   }
 
   track_selection_dialog_->Init(songs);
@@ -3061,19 +3682,17 @@ void MainWindow::HandleNotificationPreview(OSD::Behaviour type, QString line1,
 
 void MainWindow::ScrollToInternetIndex(const QModelIndex& index) {
   internet_view_->ScrollToIndex(index);
-  ui_->tabs->setCurrentWidget(internet_view_);
+  ui_->tabs->setCurrentPage(internet_view_);
 }
 
 void MainWindow::AddPodcast() {
   app_->internet_model()->Service<PodcastService>()->AddPodcast();
 }
 
-void MainWindow::FocusLibraryTab() {
-  ui_->tabs->setCurrentWidget(library_view_);
-}
+void MainWindow::FocusLibraryTab() { ui_->tabs->setCurrentPage(library_view_); }
 
 void MainWindow::FocusGlobalSearchField() {
-  ui_->tabs->setCurrentWidget(global_search_view_);
+  ui_->tabs->setCurrentPage(global_search_view_);
   global_search_view_->FocusSearchField();
 }
 

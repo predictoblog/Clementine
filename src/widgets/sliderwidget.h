@@ -99,6 +99,9 @@ class VolumeSlider : public Slider {
  public:
   VolumeSlider(QWidget* parent, uint max = 0);
 
+  // A thin, rounded track with no wedge or percentage, as in the player bar.
+  void SetFlat(bool flat);
+
  protected:
   virtual void paintEvent(QPaintEvent*);
   virtual void enterEvent(QEnterEvent*);
@@ -136,6 +139,9 @@ class VolumeSlider : public Slider {
   QColor m_previous_theme_highlight_color;
 
   QList<QPixmap> m_handlePixmaps;
+
+  bool m_flat = false;
+  void paintFlat(QPainter* p);
 };
 }  // namespace Amarok
 

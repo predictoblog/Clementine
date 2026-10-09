@@ -17,6 +17,7 @@
 #include "symbolicicon.h"
 
 #include <QApplication>
+#include <QFile>
 #include <QHash>
 #include <QIconEngine>
 #include <QImage>
@@ -142,11 +143,14 @@ QColor ColorFor(QIcon::Mode mode) {
 
 class SymbolicIconEngine : public QIconEngine {
  public:
-  SymbolicIconEngine(const QString& name, const QIcon& source)
-      : name_(name), source_(source) {}
+  // `kind` keeps the pixmap cache apart for icons from different sources
+  // that share a name, eg. the theme's symbolic "folder" and our own.
+  SymbolicIconEngine(const QString& name, const QIcon& source,
+                     const QString& kind = "symbolic")
+      : name_(name), source_(source), kind_(kind) {}
 
   QIconEngine* clone() const override {
-    return new SymbolicIconEngine(name_, source_);
+    return new SymbolicIconEngine(name_, source_, kind_);
   }
   QString key() const override { return "Symbolic"; }
   QString iconName() override { return name_ + "-symbolic"; }
@@ -186,7 +190,8 @@ class SymbolicIconEngine : public QIconEngine {
  private:
   QPixmap Pixmap(const QSize& size, const QColor& color, qreal scale) const {
     const QSize pixels = size * scale;
-    const QString cache_key = QString("symbolic:%1:%2x%3:%4")
+    const QString cache_key = QString("%1:%2:%3x%4:%5")
+                                  .arg(kind_)
                                   .arg(name_)
                                   .arg(pixels.width())
                                   .arg(pixels.height())
@@ -218,6 +223,7 @@ class SymbolicIconEngine : public QIconEngine {
 
   QString name_;
   QIcon source_;
+  QString kind_;
 };
 
 }  // namespace
@@ -226,4 +232,20 @@ QIcon SymbolicIcon(const QString& name) {
   const QString symbolic_name = name + "-symbolic";
   if (!QIcon::hasThemeIcon(symbolic_name)) return QIcon();
   return QIcon(new SymbolicIconEngine(name, QIcon::fromTheme(symbolic_name)));
+}
+
+bool UseLineIcons() { return qgetenv("CLEMENTINE_LINE_ICONS") != "0"; }
+
+QIcon LineIcon(const QString& name) {
+  // Every size we ship, so a small icon is drawn from a small source rather
+  // than scaled down from a large one and blurred.
+  static const int kSizes[] = {16, 24, 32, 48, 96};
+
+  QIcon source;
+  for (int size : kSizes) {
+    const QString path = QString(":/icons/line/%1/%2.png").arg(size).arg(name);
+    if (QFile::exists(path)) source.addFile(path, QSize(size, size));
+  }
+  if (source.isNull()) return QIcon();
+  return QIcon(new SymbolicIconEngine(name, source, "line"));
 }

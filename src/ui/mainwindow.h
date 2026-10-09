@@ -19,6 +19,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QMap>
 #include <QSettings>
 #include <QSystemTrayIcon>
 #include <memory>
@@ -59,15 +60,24 @@ class GlobalSearchView;
 class GlobalShortcuts;
 class GroupByDialog;
 class Library;
+class AudiobooksView;
+class LibraryBrowser;
+class MiniPlayer;
+class ListeningController;
+class PodcastsView;
 class LibraryViewContainer;
 class MimeData;
 class MultiLoadingIndicator;
+class NowPlayingPanel;
 class OSD;
 class Player;
+class PlayerBar;
 class PlaylistBackend;
 class PlaylistListContainer;
 class PlaylistManager;
+class PlaylistTitleBar;
 class QueueManager;
+class QueuePanel;
 class InternetItem;
 class InternetModel;
 class InternetViewContainer;
@@ -87,6 +97,7 @@ class Windows7ThumbBar;
 class Ui_MainWindow;
 
 class QSortFilterProxyModel;
+class QStackedWidget;
 
 class MainWindow : public QMainWindow, public PlatformInterface {
   Q_OBJECT
@@ -297,6 +308,35 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   void ShowConsole();
 
  private:
+  // Arranges the window: the source list and its page on the left, the
+  // playlist in the middle, the Now playing panel on the right, and the
+  // player bar along the bottom. Called right after setupUi().
+  void SetUpLayout();
+  // The View menu: the sidebar, the Now playing panel, and which sections
+  // of the source list to show.
+  void SetUpViewMenu();
+  void SetNowPlayingPanelVisible(bool visible);
+  // Shows what the source list's current entry calls for: a browsing page
+  // in the middle with the sidebar's own column folded away, or the
+  // playlist in the middle with the source's column beside it.
+  void SourceChanged();
+  void SetSideColumnVisible(bool visible);
+  void PlayFromBrowser(const SongList& songs, int start, bool shuffle);
+  // Plays into a playlist kept for the purpose - Library, Audiobooks,
+  // Podcasts - remembered under `setting`, so hand-built playlists are
+  // never replaced.
+  void PlayInOwnPlaylist(const QString& setting, const QString& name,
+                         const SongList& songs, int start);
+  // Looks these songs up on MusicBrainz and offers what it finds.
+  void AutoCompleteTagsFor(const SongList& songs);
+  // The source list's row for each open playlist.
+  void AddPlaylistSource(int id, const QString& name);
+  void RemovePlaylistSource(int id);
+  void CurrentPlaylistChanged(Playlist* playlist);
+  QWidget* PlaylistSourcePage(QWidget* wrapper) const;
+  int PlaylistSourceIndex(int id) const;
+  void QueueFromBrowser(const SongList& songs);
+
   void ConnectInfoView(SongInfoBase* view);
 
   void ApplyAddBehaviour(AddBehaviour b, MimeData* data) const;
@@ -334,6 +374,33 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   DeviceView* device_view_;
   SongInfoView* song_info_view_;
   ArtistInfoView* artist_info_view_;
+
+  PlayerBar* player_bar_;
+  QStackedWidget* centre_stack_;
+  LibraryBrowser* library_browser_;
+  ListeningController* listening_;
+  AudiobooksView* audiobooks_view_;
+  PodcastsView* podcasts_view_;
+  MiniPlayer* mini_player_;
+  // Empty pages standing for the entries that fill the middle of the window
+  // rather than the sidebar's column.
+  QWidget* now_playing_source_;
+  QWidget* albums_source_;
+  QWidget* songs_source_;
+  QWidget* attention_source_;
+  QWidget* podcasts_source_;
+  QWidget* audiobooks_source_;
+  // The Smart views section's rows, and the view each shows.
+  QMap<QWidget*, int> smart_sources_;
+  int side_column_width_;
+  int panel_width_;
+  NowPlayingPanel* now_playing_panel_;
+  QueuePanel* queue_panel_;
+  PlaylistTitleBar* playlist_title_bar_;
+  // The empty page standing for each open playlist's row, and its id.
+  QMap<QWidget*, int> playlist_sources_;
+  bool syncing_sources_;
+  QAction* action_show_now_playing_panel_;
 
   Lazy<SettingsDialog> settings_dialog_;
   Lazy<AddStreamDialog> add_stream_dialog_;

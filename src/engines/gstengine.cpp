@@ -108,6 +108,7 @@ GstEngine::GstEngine(Application* app)
       latest_buffer_(nullptr),
       equalizer_enabled_(false),
       stereo_balance_(0.0f),
+      playback_rate_(1.0),
       rg_enabled_(false),
       rg_mode_(0),
       rg_preamp_(0.0),
@@ -729,6 +730,12 @@ void GstEngine::SetStereoBalance(float value) {
   if (current_pipeline_) current_pipeline_->SetStereoBalance(value);
 }
 
+void GstEngine::SetPlaybackRate(double rate) {
+  playback_rate_ = rate;
+
+  if (current_pipeline_) current_pipeline_->SetPlaybackRate(rate);
+}
+
 void GstEngine::SetVolumeSW(uint percent) {
   if (current_pipeline_) current_pipeline_->SetVolume(percent);
 }
@@ -829,7 +836,7 @@ void GstEngine::NewMetaData(int pipeline_id,
 }
 
 GstElement* GstEngine::CreateElement(const QString& factoryName,
-                                     GstElement* bin) {
+                                     GstElement* bin, bool required) {
   // Make a unique name
   QString name = factoryName + "-" + QString::number(next_element_id_++);
 
@@ -837,6 +844,7 @@ GstElement* GstEngine::CreateElement(const QString& factoryName,
       factoryName.toLatin1().constData(), name.toLatin1().constData());
 
   if (!element) {
+    if (!required) return nullptr;
     emit Error(QString("GStreamer could not create the element: %1.  "
                        "Please make sure that you have installed all necessary "
                        "GStreamer plugins (e.g. OGG and MP3)")
@@ -885,6 +893,7 @@ shared_ptr<GstEnginePipeline> GstEngine::CreatePipeline() {
   ret->set_mono_playback(mono_playback_);
   ret->set_sample_rate(sample_rate_);
   ret->set_format(format_);
+  ret->set_playback_rate(playback_rate_);
 
   ret->AddBufferConsumer(this);
   for (BufferConsumer* consumer : buffer_consumers_) {

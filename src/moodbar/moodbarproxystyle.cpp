@@ -22,6 +22,7 @@
 #include <QEvent>
 #include <QMenu>
 #include <QPainter>
+#include <QPainterPath>
 #include <QSettings>
 #include <QSlider>
 #include <QStyleOptionComplex>
@@ -192,8 +193,7 @@ void MoodbarProxyStyle::Render(ComplexControl control,
       if (fade_source_.isNull()) {
         // Draw the normal slider into the fade source pixmap.
         fade_source_ = QPixmap(option->rect.size());
-        fade_source_.fill(
-            option->palette.color(QPalette::Active, QPalette::Window));
+        fade_source_.fill(Qt::transparent);
 
         QPainter p(&fade_source_);
         QStyleOptionSlider opt_copy(*option);
@@ -303,18 +303,20 @@ void MoodbarProxyStyle::DrawArrow(const QStyleOptionSlider* option,
   const QRect rect =
       subControlRect(CC_Slider, option, SC_SliderHandle, slider_);
 
-  // Make a polygon
-  QPolygon poly;
-  poly << rect.topLeft() << rect.topRight()
-       << QPoint(rect.center().x(), rect.bottom());
+  // A rounded upright bar marking the position, in the text colour with a
+  // halo of the background so it stands out on any part of the moodbar.
+  const QPointF top(rect.center().x() + 0.5, rect.top() + 2);
+  const QPointF bottom(rect.center().x() + 0.5, rect.bottom() - 1);
+  const QPalette& palette = slider_->palette();
 
-  // Draw it
   painter->save();
   painter->setRenderHint(QPainter::Antialiasing);
-  painter->translate(0.5, 0.5);
-  painter->setPen(Qt::black);
-  painter->setBrush(slider_->palette().brush(QPalette::Active, QPalette::Base));
-  painter->drawPolygon(poly);
+  painter->setPen(
+      QPen(palette.color(QPalette::Base), 5, Qt::SolidLine, Qt::RoundCap));
+  painter->drawLine(top, bottom);
+  painter->setPen(QPen(palette.color(QPalette::WindowText), 3, Qt::SolidLine,
+                       Qt::RoundCap));
+  painter->drawLine(top, bottom);
   painter->restore();
 }
 
@@ -322,29 +324,22 @@ QPixmap MoodbarProxyStyle::MoodbarPixmap(const ColorVector& colors,
                                          const QSize& size,
                                          const QPalette& palette,
                                          const QStyleOptionSlider* opt) {
+  Q_UNUSED(palette);
   QRect rect(QPoint(0, 0), size);
   QRect border_rect(rect);
   border_rect.adjust(kMarginSize, kMarginSize, -kMarginSize, -kMarginSize);
 
-  QRect inner_rect(border_rect);
-  inner_rect.adjust(kBorderSize, kBorderSize, -kBorderSize, -kBorderSize);
-
+  // The moodbar in a rounded strip on a transparent ground, so it sits on
+  // whatever is behind the slider rather than in a black frame.
   QPixmap ret(size);
+  ret.fill(Qt::transparent);
   QPainter p(&ret);
+  p.setRenderHint(QPainter::Antialiasing);
 
-  // Draw the moodbar
-  MoodbarRenderer::Render(colors, &p, inner_rect);
-
-  // Draw the border
-  p.setPen(
-      QPen(Qt::black, kBorderSize, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
-  p.drawRect(border_rect.adjusted(0, 0, -1, -1));
-
-  // Draw the outer bit
-  p.setPen(QPen(palette.brush(QPalette::Active, QPalette::Window), kMarginSize,
-                Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
-
-  p.drawRect(rect.adjusted(1, 1, -2, -2));
+  QPainterPath clip;
+  clip.addRoundedRect(QRectF(border_rect), 4, 4);
+  p.setClipPath(clip);
+  MoodbarRenderer::Render(colors, &p, border_rect);
 
   p.end();
 

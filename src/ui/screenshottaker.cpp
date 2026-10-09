@@ -43,11 +43,16 @@
 #include "core/player.h"
 #include "core/taskmanager.h"
 #include "core/timeconstants.h"
+#include "internet/podcasts/podcastsview.h"
+#include "library/audiobooksview.h"
 #include "library/directory.h"
 #include "library/librarybackend.h"
+#include "library/librarybrowser.h"
 #include "playlist/playlist.h"
 #include "playlist/playlistmanager.h"
 #include "ui/mainwindow.h"
+#include "ui/miniplayer.h"
+#include "ui/nowplayingpanel.h"
 #include "ui/settingsdialog.h"
 #include "widgets/fancytabwidget.h"
 
@@ -263,17 +268,82 @@ void ScreenshotTaker::TakeMainWindow(const QString& prefix) {
   }
 
   int n = 0;
+  int library_tab = 0;
+  LibraryBrowser* browser = window_->findChild<LibraryBrowser*>();
   for (int i = 0; i < tabs->count(); ++i) {
-    // The spacer between the groups of tabs has no name.
-    if (!tabs->isTabVisible(i) || tabs->tabText(i).isEmpty()) continue;
+    // Spacers and the source list's section captions aren't pages.
+    if (!tabs->isTabVisible(i) || !tabs->isTabEnabled(i) ||
+        tabs->tabText(i).isEmpty()) {
+      continue;
+    }
     tabs->setCurrentIndex(i);
     Wait(kPaintDelayMsec);
     Save(window_, QString("%1main-%2-%3")
                       .arg(prefix)
                       .arg(++n, 2, 10, QChar('0'))
                       .arg(Slug(tabs->tabText(i))));
+
+    // The album grid's tab: also an album's own page, opened from it.
+    if (browser && browser->isVisible() &&
+        browser->page() == LibraryBrowser::Page_Albums) {
+      library_tab = i;
+      if (browser->ShowFirstAlbum()) {
+        Wait(kPaintDelayMsec);
+        Save(
+            window_,
+            QString("%1main-%2-album").arg(prefix).arg(++n, 2, 10, QChar('0')));
+        browser->ShowAlbums();
+      }
+    }
+
+    // Audiobooks and podcasts: a book's and a show's own page too.
+    AudiobooksView* books = window_->findChild<AudiobooksView*>();
+    if (books && books->isVisible() && books->ShowFirstBook()) {
+      Wait(kPaintDelayMsec);
+      Save(window_,
+           QString("%1main-%2-book").arg(prefix).arg(++n, 2, 10, QChar('0')));
+      books->ShowBooks();
+    }
+    PodcastsView* podcasts = window_->findChild<PodcastsView*>();
+    if (podcasts && podcasts->isVisible() && podcasts->ShowFirstPodcast()) {
+      Wait(kPaintDelayMsec);
+      Save(window_,
+           QString("%1main-%2-show").arg(prefix).arg(++n, 2, 10, QChar('0')));
+      podcasts->ShowPodcasts();
+    }
+  }
+
+  // Each tab of the Now playing panel, beside the library.
+  NowPlayingPanel* panel = window_->findChild<NowPlayingPanel*>();
+  if (panel && panel->isVisible()) {
+    tabs->setCurrentIndex(library_tab);
+    const QList<std::pair<NowPlayingPanel::Page, QString>> pages = {
+        {NowPlayingPanel::Page_Lyrics, "lyrics"},
+        {NowPlayingPanel::Page_Artist, "artist"},
+        {NowPlayingPanel::Page_Details, "details"},
+        {NowPlayingPanel::Page_Queue, "queue"},
+    };
+    for (const auto& page : pages) {
+      panel->SetCurrentPage(page.first);
+      Wait(kPaintDelayMsec);
+      Save(window_, QString("%1main-%2-panel-%3")
+                        .arg(prefix)
+                        .arg(++n, 2, 10, QChar('0'))
+                        .arg(page.second));
+    }
+    panel->SetCurrentPage(NowPlayingPanel::Page_Lyrics);
   }
   tabs->setCurrentIndex(0);
+
+  // The mini player, on its own.
+  for (QWidget* widget : QApplication::topLevelWidgets()) {
+    MiniPlayer* mini = qobject_cast<MiniPlayer*>(widget);
+    if (!mini) continue;
+    mini->show();
+    Wait(kPaintDelayMsec);
+    Save(mini, QString("%1mini-player").arg(prefix));
+    mini->hide();
+  }
 }
 
 void ScreenshotTaker::TakeSettings(const QString& prefix) {
@@ -286,7 +356,7 @@ void ScreenshotTaker::TakeSettings(const QString& prefix) {
     if (dialog) break;
   }
   QTreeWidget* list =
-      dialog ? dialog->findChild<QTreeWidget*>("list") : nullptr;
+      dialog ? dialog->findChild<QTreeWidget*>("settings_list") : nullptr;
   if (!list) {
     qLog(Error) << "Couldn't find the settings dialog's pages";
     ++failures_;

@@ -27,6 +27,8 @@ class IconLoader {
 
   static void Init();
   static QIcon Load(const QString& name, const IconType& icontype);
+  // Whether Base icons come from the monochrome line set.
+  static bool UsesLineIcons() { return use_line_icons_; }
 
  private:
   IconLoader() {}
@@ -36,6 +38,7 @@ class IconLoader {
   static QList<QString> icon_sub_path_;
   static bool use_sys_icons_;
   static bool use_symbolic_icons_;
+  static bool use_line_icons_;
 };
 
 #endif  // ICONLOADER_H

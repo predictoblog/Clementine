@@ -35,6 +35,7 @@
 #include <algorithm>
 
 #include "config.h"
+#include "core/appearance.h"
 #include "core/application.h"
 #include "core/logging.h"
 #include "core/player.h"
@@ -44,6 +45,7 @@
 #include "playlistdelegates.h"
 #include "playlistheader.h"
 #include "ui/qt_blurimage.h"
+#include "ui/symbolicicon.h"
 
 #ifdef HAVE_MOODBAR
 #include "moodbar/moodbaritemdelegate.h"
@@ -116,7 +118,7 @@ PlaylistView::PlaylistView(QWidget* parent)
       upgrading_from_version_(-1),
       header_loaded_(false),
       background_initialized_(false),
-      background_image_type_(Default),
+      background_image_type_(None),
       blur_radius_(kDefaultBlurRadius),
       opacity_level_(kDefaultOpacityLevel),
       previous_background_image_opacity_(0.0),
@@ -131,7 +133,6 @@ PlaylistView::PlaylistView(QWidget* parent)
       inhibit_autoscroll_timer_(new QTimer(this)),
       inhibit_autoscroll_(false),
       currently_autoscrolling_(false),
-      row_height_(-1),
       cached_current_row_row_(-1),
       drop_indicator_row_(-1),
       drag_over_(false),
@@ -155,6 +156,12 @@ PlaylistView::PlaylistView(QWidget* parent)
   // playlist row.
   currenttrack_play_ = QPixmap(":/currenttrack_play.png");
   currenttrack_pause_ = QPixmap(":/currenttrack_pause.png");
+  // Null when the line icons are turned off; drawRow falls back to the
+  // pixmaps above.
+  if (UseLineIcons()) {
+    currenttrack_play_icon_ = LineIcon("media-playback-start");
+    currenttrack_pause_icon_ = LineIcon("media-playback-pause");
+  }
 
   connect(header_, SIGNAL(sectionResized(int, int, int)),
           SLOT(DirtyGeometry()));
@@ -369,6 +376,10 @@ void PlaylistView::LoadGeometry() {
       header_->HideSection(Playlist::Column_PlayCount);
       header_->HideSection(Playlist::Column_SkipCount);
       header_->HideSection(Playlist::Column_LastPlayed);
+      // Plumbing most people don't need to see: they're one right-click on
+      // the header away.
+      header_->HideSection(Playlist::Column_BaseFilename);
+      header_->HideSection(Playlist::Column_Source);
 
       header_->moveSection(header_->visualIndex(Playlist::Column_Track), 0);
       setting_initial_header_layout_ = true;
@@ -380,7 +391,11 @@ void PlaylistView::LoadGeometry() {
   // New columns that we add are visible by default if the user has upgraded
   // Clementine.  Hide them again here
   const int state_version = settings.value("state_version", 0).toInt();
-  upgrading_from_version_ = state_version;
+  // A fresh header has nothing to upgrade: the defaults above already are
+  // the current version's, and treating it as version 0 would bring back
+  // the Source column hidden there (see ReloadSettings()).
+  upgrading_from_version_ =
+      setting_initial_header_layout_ ? kStateVersion : state_version;
 
   if (state_version < 1) {
     header_->HideSection(Playlist::Column_Rating);
@@ -445,46 +460,6 @@ void PlaylistView::SetRatingLockStatus(bool state) {
   s.setValue("RatingLocked", state);
 }
 
-void PlaylistView::ReloadBarPixmaps() {
-  currenttrack_bar_left_ = LoadBarPixmap(":currenttrack_bar_left.png");
-  currenttrack_bar_mid_ = LoadBarPixmap(":currenttrack_bar_mid.png");
-  currenttrack_bar_right_ = LoadBarPixmap(":currenttrack_bar_right.png");
-}
-
-QList<QPixmap> PlaylistView::LoadBarPixmap(const QString& filename) {
-  QImage image(filename);
-  // scaledToHeight() rounds the derived width down, so the 1px-wide mid bar
-  // becomes a null image at smaller row heights and painting into it warns
-  // once per glow step.
-  if (!image.isNull() && row_height_ > 0) {
-    const int width =
-        qMax(1, qRound(image.width() * row_height_ / double(image.height())));
-    image = image.scaled(width, row_height_, Qt::IgnoreAspectRatio,
-                         Qt::SmoothTransformation);
-  }
-
-  // Colour the bar with the palette colour
-  QPainter p(&image);
-  p.setCompositionMode(QPainter::CompositionMode_SourceAtop);
-  p.setOpacity(0.7);
-  p.fillRect(image.rect(), QApplication::palette().color(QPalette::Highlight));
-  p.end();
-
-  // Animation steps
-  QList<QPixmap> ret;
-  for (int i = 0; i < kGlowIntensitySteps; ++i) {
-    QImage step(image.copy());
-    p.begin(&step);
-    p.setCompositionMode(QPainter::CompositionMode_SourceAtop);
-    p.setOpacity(0.4 - 0.6 * sin(float(i) / kGlowIntensitySteps * (M_PI / 2)));
-    p.fillRect(step.rect(), Qt::white);
-    p.end();
-    ret << QPixmap::fromImage(step);
-  }
-
-  return ret;
-}
-
 void PlaylistView::drawTree(QPainter* painter, const QRegion& region) const {
   const_cast<PlaylistView*>(this)->current_paint_region_ = region;
   QTreeView::drawTree(painter, region);
@@ -507,40 +482,55 @@ void PlaylistView::drawRow(QPainter* painter,
     if (step >= kGlowIntensitySteps)
       step = 2 * (kGlowIntensitySteps - 1) - step + 1;
 
-    int row_height = opt.rect.height();
-    if (row_height != row_height_) {
-      // Recreate the pixmaps if the height changed since last time
-      const_cast<PlaylistView*>(this)->row_height_ = row_height;
-      const_cast<PlaylistView*>(this)->ReloadBarPixmaps();
+    // A flat, rounded band behind the playing row, tinted with the accent and
+    // gently pulsing while it glows, with the play or pause mark in the
+    // accent colour.
+    const QColor accent = Appearance::AccentColor(opt.palette);
+    const bool dark = Appearance::IsDarkPalette(opt.palette);
+    const double pulse =
+        double(step) / qMax(1, kGlowIntensitySteps - 1);  // 0 to 1
+    QColor band = accent;
+    band.setAlphaF((dark ? 0.16 : 0.14) + 0.08 * pulse);
+
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(Qt::NoPen);
+    if (selectionModel()->isSelected(index)) {
+      painter->setBrush(opt.palette.color(QPalette::Highlight));
+      painter->drawRoundedRect(QRectF(opt.rect).adjusted(2, 1, -2, -1), 6, 6);
     }
+    painter->setBrush(band);
+    painter->drawRoundedRect(QRectF(opt.rect).adjusted(2, 1, -2, -1), 6, 6);
 
-    QRect middle(opt.rect);
-    middle.setLeft(middle.left() + currenttrack_bar_left_[0].width());
-    middle.setRight(middle.right() - currenttrack_bar_right_[0].width());
+    const int icon_size = qMin(16, opt.rect.height() - 4);
+    const QRect icon_rect(opt.rect.left() + 8,
+                          opt.rect.top() + (opt.rect.height() - icon_size) / 2,
+                          icon_size, icon_size);
+    const QIcon& icon =
+        is_paused ? currenttrack_pause_icon_ : currenttrack_play_icon_;
+    if (!icon.isNull()) {
+      // Line icons take the painter's pen colour.
+      painter->setPen(accent);
+      icon.paint(painter, icon_rect);
+    } else {
+      const QPixmap& pixmap =
+          is_paused ? currenttrack_pause_ : currenttrack_play_;
+      painter->drawPixmap(
+          icon_rect.topLeft() + QPoint(0, (icon_size - pixmap.height()) / 2),
+          pixmap);
+    }
+    painter->restore();
 
-    // Selection
-    if (selectionModel()->isSelected(index))
-      painter->fillRect(opt.rect, opt.palette.color(QPalette::Highlight));
-
-    // Draw the bar
-    painter->drawPixmap(opt.rect.topLeft(), currenttrack_bar_left_[step]);
-    painter->drawPixmap(
-        opt.rect.topRight() - currenttrack_bar_right_[0].rect().topRight(),
-        currenttrack_bar_right_[step]);
-    painter->drawPixmap(middle, currenttrack_bar_mid_[step]);
-
-    // Draw the play icon
-    QPoint play_pos(currenttrack_bar_left_[0].width() / 3 * 2,
-                    (row_height - currenttrack_play_.height()) / 2);
-    painter->drawPixmap(opt.rect.topLeft() + play_pos,
-                        is_paused ? currenttrack_pause_ : currenttrack_play_);
+    // The playing row's text: the accent in dark, where it reads well on
+    // the band, and the normal text colour in light, where it wouldn't.
+    const QColor row_text =
+        dark ? accent : QApplication::palette().color(QPalette::Text);
 
     // Set the font
+    opt.palette.setColor(QPalette::Active, QPalette::HighlightedText, row_text);
     opt.palette.setColor(QPalette::Inactive, QPalette::HighlightedText,
-                         QApplication::palette().color(
-                             QPalette::Active, QPalette::HighlightedText));
-    opt.palette.setColor(QPalette::Text, QApplication::palette().color(
-                                             QPalette::HighlightedText));
+                         row_text);
+    opt.palette.setColor(QPalette::Text, row_text);
     opt.palette.setColor(QPalette::Highlight, Qt::transparent);
     opt.palette.setColor(QPalette::AlternateBase, Qt::transparent);
     opt.decorationSize = QSize(20, 20);
@@ -1132,8 +1122,8 @@ void PlaylistView::ReloadSettings() {
   if (!glow_enabled_) StopGlowing();
 
   if (setting_initial_header_layout_) {
-    header_->SetColumnWidth(Playlist::Column_Length, 0.06);
-    header_->SetColumnWidth(Playlist::Column_Track, 0.05);
+    header_->SetColumnWidth(Playlist::Column_Length, 0.08);
+    header_->SetColumnWidth(Playlist::Column_Track, 0.07);
     setting_initial_header_layout_ = false;
   }
 
@@ -1154,7 +1144,9 @@ void PlaylistView::ReloadSettings() {
   // Background:
   QVariant q_playlistview_background_type =
       s.value(kSettingBackgroundImageType);
-  BackgroundImageType background_type(Default);
+  // No background image unless the user picked one: the clementine watermark
+  // is still available as the "Default background image" option.
+  BackgroundImageType background_type(None);
   // bg_enabled should also be checked for backward compatibility (in releases
   // <= 1.0, there was just a boolean to activate/deactivate the background)
   QVariant bg_enabled = s.value("bg_enabled");

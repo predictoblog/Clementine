@@ -265,6 +265,11 @@ void EngineRouter::SetStereoBalance(float value) {
   for (Engine::Base* remote : remotes_) remote->SetStereoBalance(value);
 }
 
+void EngineRouter::SetPlaybackRate(double rate) {
+  local_->SetPlaybackRate(rate);
+  for (Engine::Base* remote : remotes_) remote->SetPlaybackRate(rate);
+}
+
 void EngineRouter::SetVolumeSW(uint) {
   // Each engine applies its own curve, so hand it the linear volume.
   active_->SetVolume(volume_);

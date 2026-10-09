@@ -85,10 +85,12 @@ NowPlayingWidget::NowPlayingWidget(QWidget* parent)
   // Load settings
   QSettings s;
   s.beginGroup(kSettingsGroup);
-  mode_ = Mode(s.value("mode", SmallSongDetails).toInt());
+  // The widget lives at the top of the Now playing panel, so by default it
+  // shows a large cover filling the panel's width, with the details below.
+  mode_ = Mode(s.value("mode", LargeSongDetailsBelow).toInt());
   album_cover_choice_controller_->search_cover_auto_action()->setChecked(
       s.value("search_for_cover_auto", false).toBool());
-  fit_width_ = s.value("fit_cover_width", false).toBool();
+  fit_width_ = s.value("fit_cover_width", true).toBool();
 
   // Accept drops for setting album art
   setAcceptDrops(true);
@@ -142,6 +144,9 @@ NowPlayingWidget::NowPlayingWidget(QWidget* parent)
           SLOT(ShowAboveStatusBar(bool)));
   above_statusbar_action_->setChecked(
       s.value("above_status_bar", false).toBool());
+  // The widget now sits in the Now playing panel, nowhere near the status
+  // bar, so the option has nothing to move.
+  above_statusbar_action_->setVisible(false);
 
   bask_in_his_glory_action_ =
       menu_->addAction(tr("ALL GLORY TO THE HYPNOTOAD"));

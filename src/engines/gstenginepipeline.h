@@ -70,6 +70,10 @@ class GstEnginePipeline : public GstPipelineBase {
   void SetEqualizerParams(int preamp, const QList<int>& band_gains);
   void SetVolume(int percent);
   void SetStereoBalance(float value);
+  // Faster or slower, with the pitch kept by scaletempo.  Takes effect at
+  // once if playing, or as soon as the pipeline starts.
+  void SetPlaybackRate(double rate);
+  void set_playback_rate(double rate) { rate_ = rate; }
   void StartFader(qint64 duration_nanosec,
                   QTimeLine::Direction direction = QTimeLine::Forward,
                   QEasingCurve::Type shape = QEasingCurve::Linear,
@@ -257,6 +261,10 @@ class GstEnginePipeline : public GstPipelineBase {
   bool pipeline_is_connected_;
   qint64 pending_seek_nanosec_;
 
+  // The playback speed asked for, and the one the last seek applied.
+  double rate_;
+  double applied_rate_;
+
   // We can only use gst_element_query_position() when the pipeline is in
   // PAUSED nor PLAYING state. Whenever we get a new position (e.g. after a
   // correct call to gst_element_query_position() or after a seek), we store
@@ -286,6 +294,7 @@ class GstEnginePipeline : public GstPipelineBase {
   GstElement* equalizer_;
   GstElement* stereo_panorama_;
   GstElement* volume_;
+  GstElement* scaletempo_;
   GstElement* audioscale_;
   GstElement* audiosink_;
   GstElement* capsfilter_;

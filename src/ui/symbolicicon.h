@@ -34,4 +34,14 @@ QString SymbolicNameForIconName(const QString& icon_name);
 // follows light and dark. A null icon if the theme doesn't have it.
 QIcon SymbolicIcon(const QString& name);
 
+// Whether to draw the common actions with Clementine's own line icons: on
+// unless CLEMENTINE_LINE_ICONS=0. On macOS, IconLoader tries SF Symbols
+// first, and the line icons cover the names they don't.
+bool UseLineIcons();
+
+// Clementine's own monochrome line icon for one of its icon names, recoloured
+// the same way as SymbolicIcon(), or a null icon if there isn't one. The
+// shapes live in data/icons/line; see tools/icons/render-line-icons.sh.
+QIcon LineIcon(const QString& name);
+
 #endif  // UI_SYMBOLICICON_H

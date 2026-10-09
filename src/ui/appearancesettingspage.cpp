@@ -123,7 +123,8 @@ void AppearanceSettingsPage::Load() {
   s.beginGroup(Playlist::kSettingsGroup);
   playlist_view_background_image_type_ =
       static_cast<PlaylistView::BackgroundImageType>(
-          s.value(PlaylistView::kSettingBackgroundImageType).toInt());
+          s.value(PlaylistView::kSettingBackgroundImageType, PlaylistView::None)
+              .toInt());
   playlist_view_background_image_filename_ =
       s.value(PlaylistView::kSettingBackgroundImageFilename).toString();
 
