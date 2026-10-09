@@ -25,6 +25,7 @@
 #include "widgets/osd.h"
 
 class QAbstractButton;
+class QLineEdit;
 class QScrollArea;
 class QTreeWidgetItem;
 
@@ -132,6 +133,8 @@ class SettingsDialog : public QDialog {
  private slots:
   void CurrentItemChanged(QTreeWidgetItem* item);
   void DialogButtonClicked(QAbstractButton* button);
+  // Shows only the pages with this text somewhere on them.
+  void Filter(const QString& text);
 
  private:
   struct PageData {
@@ -141,6 +144,9 @@ class SettingsDialog : public QDialog {
   };
 
   void AddCategory(SettingsCategory* category);
+  // Whether the page's title or any label, button or group on it has this
+  // text.
+  static bool PageMentions(const PageData& data, const QString& text);
 
   // Combo boxes, sliders and spin boxes don't react to the mouse wheel.
   static bool IgnoresWheelEvents(const QWidget* widget);
@@ -160,6 +166,7 @@ class SettingsDialog : public QDialog {
   Appearance* appearance_;
 
   Ui_SettingsDialog* ui_;
+  QLineEdit* filter_;
   bool loading_settings_;
 
   QMap<Page, PageData> pages_;

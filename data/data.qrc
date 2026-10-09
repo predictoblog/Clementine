@@ -559,6 +559,7 @@
         <file>icons/line/16/x-clementine-album.png</file>
         <file>icons/line/16/x-clementine-artist.png</file>
         <file>icons/line/16/x-clementine-audiobook.png</file>
+        <file>icons/line/16/x-clementine-notification.png</file>
         <file>icons/line/16/x-clementine-sleep.png</file>
         <file>icons/line/16/zoom-in.png</file>
         <file alias="icons/line/16/x-clementine-shuffle.png">icons/line/16/media-playlist-shuffle.png</file>
@@ -633,6 +634,7 @@
         <file>icons/line/24/x-clementine-album.png</file>
         <file>icons/line/24/x-clementine-artist.png</file>
         <file>icons/line/24/x-clementine-audiobook.png</file>
+        <file>icons/line/24/x-clementine-notification.png</file>
         <file>icons/line/24/x-clementine-sleep.png</file>
         <file>icons/line/24/zoom-in.png</file>
         <file alias="icons/line/24/x-clementine-shuffle.png">icons/line/24/media-playlist-shuffle.png</file>
@@ -707,6 +709,7 @@
         <file>icons/line/32/x-clementine-album.png</file>
         <file>icons/line/32/x-clementine-artist.png</file>
         <file>icons/line/32/x-clementine-audiobook.png</file>
+        <file>icons/line/32/x-clementine-notification.png</file>
         <file>icons/line/32/x-clementine-sleep.png</file>
         <file>icons/line/32/zoom-in.png</file>
         <file alias="icons/line/32/x-clementine-shuffle.png">icons/line/32/media-playlist-shuffle.png</file>
@@ -781,6 +784,7 @@
         <file>icons/line/48/x-clementine-album.png</file>
         <file>icons/line/48/x-clementine-artist.png</file>
         <file>icons/line/48/x-clementine-audiobook.png</file>
+        <file>icons/line/48/x-clementine-notification.png</file>
         <file>icons/line/48/x-clementine-sleep.png</file>
         <file>icons/line/48/zoom-in.png</file>
         <file alias="icons/line/48/x-clementine-shuffle.png">icons/line/48/media-playlist-shuffle.png</file>
@@ -855,6 +859,7 @@
         <file>icons/line/96/x-clementine-album.png</file>
         <file>icons/line/96/x-clementine-artist.png</file>
         <file>icons/line/96/x-clementine-audiobook.png</file>
+        <file>icons/line/96/x-clementine-notification.png</file>
         <file>icons/line/96/x-clementine-sleep.png</file>
         <file>icons/line/96/zoom-in.png</file>
         <file alias="icons/line/96/x-clementine-shuffle.png">icons/line/96/media-playlist-shuffle.png</file>
