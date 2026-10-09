@@ -277,9 +277,9 @@ void PlayerBar::SetCover(const QImage& image) {
     p.fillRect(QRect(0, 0, kCoverSize, kCoverSize),
                palette().color(QPalette::Button));
   } else {
-    const QImage scaled = image.scaled(
-        QSize(kCoverSize, kCoverSize) * dpr, Qt::KeepAspectRatioByExpanding,
-        Qt::SmoothTransformation);
+    const QImage scaled =
+        image.scaled(QSize(kCoverSize, kCoverSize) * dpr,
+                     Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     const QRect source((scaled.width() - kCoverSize * dpr) / 2,
                        (scaled.height() - kCoverSize * dpr) / 2,
                        kCoverSize * dpr, kCoverSize * dpr);
