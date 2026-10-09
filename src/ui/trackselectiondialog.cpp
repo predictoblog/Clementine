@@ -18,6 +18,7 @@
 #include "ui/trackselectiondialog.h"
 
 #include <QFileInfo>
+#include <QLabel>
 #include <QPushButton>
 #include <QShortcut>
 #include <QTreeWidget>
@@ -59,6 +60,28 @@ TrackSelectionDialog::TrackSelectionDialog(QWidget* parent)
   new QShortcut(QKeySequence::MoveToPreviousPage, previous_button_,
                 SLOT(click()));
   new QShortcut(QKeySequence::MoveToNextPage, next_button_, SLOT(click()));
+
+  // Under the matches, what picking one would change, field by field, each
+  // with a tick to keep or leave out.
+  ui_->label->setText(tr("Pick the best match"));
+  changes_label_ = new QLabel(tr("Changes to make"), ui_->results_page);
+  changes_label_->setStyleSheet("QLabel { font-weight: bold; }");
+  changes_ = new QTreeWidget(ui_->results_page);
+  changes_->setRootIsDecorated(false);
+  changes_->setAllColumnsShowFocus(true);
+  changes_->setSelectionMode(QAbstractItemView::NoSelection);
+  changes_->setHeaderLabels(QStringList() << tr("Field") << tr("In your file")
+                                          << tr("Suggested"));
+  changes_->setColumnWidth(0, 120);
+  changes_->setColumnWidth(1, 220);
+  changes_->setMinimumHeight(150);
+  ui_->results_page->layout()->addWidget(changes_label_);
+  ui_->results_page->layout()->addWidget(changes_);
+  connect(changes_, SIGNAL(itemChanged(QTreeWidgetItem*, int)),
+          SLOT(ChangeToggled(QTreeWidgetItem*, int)));
+  if (QPushButton* ok = ui_->button_box->button(QDialogButtonBox::Ok)) {
+    ok->setText(tr("Apply"));
+  }
 
   // Resize columns
   ui_->results->setColumnWidth(0, 50);   // Track column
@@ -146,6 +169,7 @@ void TrackSelectionDialog::UpdateStack() {
 
   const Data& data = data_[row];
 
+  UpdateChanges();
   if (data.pending_) {
     ui_->stack->setCurrentWidget(ui_->loading_page);
     ui_->progress->set_text(data.progress_string_ + "...");
@@ -216,6 +240,105 @@ void TrackSelectionDialog::ResultSelected() {
   const int result_index =
       ui_->results->currentItem()->data(0, Qt::UserRole).toInt();
   data_[song_row].selected_result_ = result_index;
+  UpdateChanges();
+}
+
+QString TrackSelectionDialog::FieldName(int field) {
+  switch (field) {
+    case Field_Title:
+      return tr("Title");
+    case Field_Artist:
+      return tr("Artist");
+    case Field_Album:
+      return tr("Album");
+    case Field_Track:
+      return tr("Track");
+    case Field_Year:
+      return tr("Year");
+  }
+  return QString();
+}
+
+QString TrackSelectionDialog::FieldValue(const Song& song, int field) {
+  switch (field) {
+    case Field_Title:
+      return song.title();
+    case Field_Artist:
+      return song.artist();
+    case Field_Album:
+      return song.album();
+    case Field_Track:
+      return song.track() > 0 ? QString::number(song.track()) : QString();
+    case Field_Year:
+      return song.year() > 0 ? QString::number(song.year()) : QString();
+  }
+  return QString();
+}
+
+Song TrackSelectionDialog::Merge(const Song& original, const Song& suggestion,
+                                 const QSet<int>& skipped) {
+  Song merged(original);
+  if (!skipped.contains(Field_Title)) merged.set_title(suggestion.title());
+  if (!skipped.contains(Field_Artist)) merged.set_artist(suggestion.artist());
+  if (!skipped.contains(Field_Album)) merged.set_album(suggestion.album());
+  if (!skipped.contains(Field_Track)) merged.set_track(suggestion.track());
+  if (!skipped.contains(Field_Year)) merged.set_year(suggestion.year());
+  return merged;
+}
+
+void TrackSelectionDialog::UpdateChanges() {
+  changes_->blockSignals(true);
+  changes_->clear();
+
+  const int row = ui_->song_list->currentRow();
+  const bool have_result =
+      row >= 0 && row < data_.count() && !data_[row].pending_ &&
+      data_[row].selected_result_ >= 0 &&
+      data_[row].selected_result_ < data_[row].results_.count();
+  changes_->setVisible(have_result);
+  changes_label_->setText(have_result ? tr("Changes to make")
+                                      : tr("Keeping the file's own tags"));
+
+  if (have_result) {
+    const Data& data = data_[row];
+    const Song& suggestion = data.results_[data.selected_result_];
+    const QColor quiet = palette().color(QPalette::Disabled, QPalette::Text);
+    for (int field = 0; field < FieldCount; ++field) {
+      const QString before = FieldValue(data.original_song_, field);
+      const QString after = FieldValue(suggestion, field);
+      QTreeWidgetItem* item = new QTreeWidgetItem(changes_);
+      item->setData(0, Qt::UserRole, field);
+      item->setText(0, FieldName(field));
+      item->setText(1, before.isEmpty() ? tr("Empty") : before);
+      if (before == after) {
+        item->setText(2, tr("No change"));
+        item->setFlags(Qt::ItemIsEnabled);
+        for (int column = 0; column < 3; ++column) {
+          item->setForeground(column, quiet);
+        }
+      } else {
+        item->setText(2, after.isEmpty() ? tr("Empty") : after);
+        item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+        item->setCheckState(0, data.skipped_fields_.contains(field)
+                                   ? Qt::Unchecked
+                                   : Qt::Checked);
+        if (before.isEmpty()) item->setForeground(1, quiet);
+      }
+    }
+  }
+  changes_->blockSignals(false);
+}
+
+void TrackSelectionDialog::ChangeToggled(QTreeWidgetItem* item, int column) {
+  if (column != 0) return;
+  const int row = ui_->song_list->currentRow();
+  if (row < 0 || row >= data_.count()) return;
+  const int field = item->data(0, Qt::UserRole).toInt();
+  if (item->checkState(0) == Qt::Checked) {
+    data_[row].skipped_fields_.remove(field);
+  } else {
+    data_[row].skipped_fields_.insert(field);
+  }
 }
 
 void TrackSelectionDialog::SetLoading(const QString& message) {
@@ -233,14 +356,10 @@ void TrackSelectionDialog::SaveData(const QList<Data>& data) {
     if (ref.pending_ || ref.results_.isEmpty() || ref.selected_result_ == -1)
       continue;
 
-    const Song& new_metadata = ref.results_[ref.selected_result_];
-
-    Song copy(ref.original_song_);
-    copy.set_title(new_metadata.title());
-    copy.set_artist(new_metadata.artist());
-    copy.set_album(new_metadata.album());
-    copy.set_track(new_metadata.track());
-    copy.set_year(new_metadata.year());
+    // Only the fields left ticked in Changes to make.
+    const Song copy =
+        Merge(ref.original_song_, ref.results_[ref.selected_result_],
+              ref.skipped_fields_);
 
     if (!TagReaderClient::Instance()->SaveFileBlocking(copy.url().toLocalFile(),
                                                        copy)) {
@@ -267,9 +386,10 @@ void TrackSelectionDialog::accept() {
     if (data.pending_ || data.results_.isEmpty() || data.selected_result_ == -1)
       continue;
 
-    const Song& new_metadata = data.results_[data.selected_result_];
-
-    emit SongChosen(data.original_song_, new_metadata);
+    emit SongChosen(
+        data.original_song_,
+        Merge(data.original_song_, data.results_[data.selected_result_],
+              data.skipped_fields_));
   }
 }
 
