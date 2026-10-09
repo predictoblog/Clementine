@@ -43,6 +43,8 @@
 #include "core/player.h"
 #include "core/taskmanager.h"
 #include "core/timeconstants.h"
+#include "internet/podcasts/podcastsview.h"
+#include "library/audiobooksview.h"
 #include "library/directory.h"
 #include "library/librarybackend.h"
 #include "library/librarybrowser.h"
@@ -291,6 +293,22 @@ void ScreenshotTaker::TakeMainWindow(const QString& prefix) {
             QString("%1main-%2-album").arg(prefix).arg(++n, 2, 10, QChar('0')));
         browser->ShowAlbums();
       }
+    }
+
+    // Audiobooks and podcasts: a book's and a show's own page too.
+    AudiobooksView* books = window_->findChild<AudiobooksView*>();
+    if (books && books->isVisible() && books->ShowFirstBook()) {
+      Wait(kPaintDelayMsec);
+      Save(window_,
+           QString("%1main-%2-book").arg(prefix).arg(++n, 2, 10, QChar('0')));
+      books->ShowBooks();
+    }
+    PodcastsView* podcasts = window_->findChild<PodcastsView*>();
+    if (podcasts && podcasts->isVisible() && podcasts->ShowFirstPodcast()) {
+      Wait(kPaintDelayMsec);
+      Save(window_,
+           QString("%1main-%2-show").arg(prefix).arg(++n, 2, 10, QChar('0')));
+      podcasts->ShowPodcasts();
     }
   }
 

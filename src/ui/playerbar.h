@@ -23,6 +23,7 @@
 #include "core/song.h"
 
 class Application;
+class ListeningController;
 class QAction;
 class QBoxLayout;
 class QHBoxLayout;
@@ -61,6 +62,9 @@ class PlayerBar : public QFrame {
                            QAction* next, QAction* love);
   void SetSequenceButtons(QToolButton* shuffle, QToolButton* repeat);
   void SetTrackSlider(QWidget* slider);
+  // For audiobooks and podcasts: skip back and forward, speed and a sleep
+  // timer take the place of shuffle and repeat.
+  void SetListening(ListeningController* listening);
 
   // Widgets on the right, in the order added, before the volume.
   void AddTrailingWidget(QWidget* widget);
@@ -79,6 +83,8 @@ class PlayerBar : public QFrame {
  private slots:
   void ArtLoaded(const Song& song, const QString& uri, const QImage& image);
   void Stopped();
+  void SpokenChanged(bool spoken);
+  void UpdateListeningButtons();
 
  private:
   QToolButton* MakeTransportButton();
@@ -96,6 +102,14 @@ class PlayerBar : public QFrame {
   AccentPlayButton* play_pause_;
   QToolButton* next_;
   QBoxLayout* centre_;
+  QToolButton* shuffle_;
+  QToolButton* repeat_;
+
+  ListeningController* listening_;
+  QToolButton* speed_;
+  QToolButton* skip_back_;
+  QToolButton* skip_forward_;
+  QToolButton* sleep_;
 
   QHBoxLayout* trailing_;
   QWidget* volume_;

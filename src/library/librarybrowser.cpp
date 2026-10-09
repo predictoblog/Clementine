@@ -40,6 +40,7 @@
 
 #include "core/appearance.h"
 #include "core/application.h"
+#include "core/listening.h"
 #include "core/utilities.h"
 #include "covers/albumcoverloader.h"
 #include "covers/albumcoverloaderoptions.h"
@@ -94,6 +95,14 @@ QPixmap RoundedCover(const QImage& image, int size, qreal dpr) {
 }
 
 }  // namespace
+
+QImage BrowserPlaceholderCover(const QString& title, bool dark) {
+  return PlaceholderCover(title, 8, dark);
+}
+
+QPixmap BrowserRoundedCover(const QImage& image, int size, qreal dpr) {
+  return RoundedCover(image, size, dpr);
+}
 
 qint64 BrowserAlbum::length_nanosec() const {
   qint64 total = 0;
@@ -254,6 +263,10 @@ QVariant AlbumGridModel::data(const QModelIndex& index, int role) const {
       return album.artist;
     case Role_Year:
       return album.year;
+    case Role_Progress:
+      return album.progress;
+    case Role_Status:
+      return album.status;
     case Qt::DecorationRole:
       if (covers_.contains(index.row())) return covers_[index.row()];
       LoadCover(index.row());
@@ -292,8 +305,9 @@ void AlbumGridModel::ImageLoaded(quint64 id, const QImage& image) {
 QSize AlbumGridDelegate::sizeHint(const QStyleOptionViewItem& option,
                                   const QModelIndex&) const {
   const int line = option.fontMetrics.height();
-  return QSize(AlbumGridModel::kCoverSize,
-               AlbumGridModel::kCoverSize + 10 + line * 2 + 6);
+  return QSize(AlbumGridModel::kCoverSize, AlbumGridModel::kCoverSize + 10 +
+                                               line * (status_line_ ? 3 : 2) +
+                                               6 + (status_line_ ? 2 : 0));
 }
 
 void AlbumGridDelegate::paint(QPainter* painter,
@@ -339,6 +353,22 @@ void AlbumGridDelegate::paint(QPainter* painter,
                              kCoverRadius, kCoverRadius);
   }
 
+  // How far through, along the foot of the cover.
+  const double progress = index.data(AlbumGridModel::Role_Progress).toDouble();
+  if (progress >= 0) {
+    const QRectF track(cover_rect.left() + 10, cover_rect.bottom() - 14,
+                       size - 20, 4);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(QColor(0, 0, 0, 110));
+    painter->drawRoundedRect(track, 2, 2);
+    if (progress > 0) {
+      QRectF done = track;
+      done.setWidth(qMax(4.0, track.width() * qMin(1.0, progress)));
+      painter->setBrush(Appearance::AccentColor(option.palette));
+      painter->drawRoundedRect(done, 2, 2);
+    }
+  }
+
   // Title, then artist and year.
   const int line = option.fontMetrics.height();
   QRect text(cover_rect.left(), cover_rect.bottom() + 10, size, line);
@@ -360,6 +390,17 @@ void AlbumGridDelegate::paint(QPainter* painter,
   painter->drawText(
       text, Qt::AlignLeft | Qt::AlignVCenter,
       option.fontMetrics.elidedText(detail, Qt::ElideRight, size));
+
+  const QString status = index.data(AlbumGridModel::Role_Status).toString();
+  if (status_line_ && !status.isEmpty()) {
+    text.translate(0, line + 2);
+    painter->setPen(progress > 0 && progress < 1
+                        ? Appearance::AccentColor(option.palette)
+                        : Appearance::QuietTextColor(option.palette));
+    painter->drawText(
+        text, Qt::AlignLeft | Qt::AlignVCenter,
+        option.fontMetrics.elidedText(status, Qt::ElideRight, size));
+  }
 
   painter->restore();
 }
@@ -964,9 +1005,16 @@ void LibraryBrowser::ShowAlbum(int row) {
 
 // Loading -------------------------------------------------------------------
 
-LibraryBrowser::LoadResult LibraryBrowser::Load(Application* app) {
+LibraryBrowser::LoadResult LibraryBrowser::Load(
+    Application* app, const QStringList& audiobook_folders) {
   LoadResult result;
-  result.songs = app->library_backend()->GetAllSongs();
+  for (const Song& song : app->library_backend()->GetAllSongs()) {
+    if (ListeningController::IsAudiobook(song, audiobook_folders)) {
+      result.audiobooks << song;
+    } else {
+      result.songs << song;
+    }
+  }
   const QString various = tr("Various artists");
 
   QMap<QPair<QString, QString>, BrowserAlbum> albums;
@@ -998,13 +1046,20 @@ LibraryBrowser::LoadResult LibraryBrowser::Load(Application* app) {
   return result;
 }
 
+void LibraryBrowser::SetAudiobookFolders(const QStringList& folders) {
+  if (folders == audiobook_folders_) return;
+  audiobook_folders_ = folders;
+  Reload();
+}
+
 void LibraryBrowser::Reload() {
   if (watcher_->isRunning()) {
     // Try again when this one's done.
     reload_timer_->start();
     return;
   }
-  watcher_->setFuture(QtConcurrent::run(&LibraryBrowser::Load, app_));
+  watcher_->setFuture(
+      QtConcurrent::run(&LibraryBrowser::Load, app_, audiobook_folders_));
 }
 
 void LibraryBrowser::Loaded() {
@@ -1027,6 +1082,7 @@ void LibraryBrowser::Loaded() {
   }
   if (!found && pages_->currentIndex() == Page_Album) ShowAlbums();
   UpdateAttention();
+  emit AudiobooksLoaded(result.audiobooks);
 
   QSet<QString> artists;
   for (const BrowserAlbum& album : albums) artists << album.artist;

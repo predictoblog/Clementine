@@ -50,6 +50,7 @@
 #include "core/deletefiles.h"
 #include "core/filesystemmusicstorage.h"
 #include "core/globalshortcuts.h"
+#include "core/listening.h"
 #include "core/logging.h"
 #include "core/mac_startup.h"
 #include "core/mergedproxymodel.h"
@@ -78,6 +79,8 @@
 #include "internet/internetradio/savedradio.h"
 #include "internet/magnatune/magnatuneservice.h"
 #include "internet/podcasts/podcastservice.h"
+#include "internet/podcasts/podcastsview.h"
+#include "library/audiobooksview.h"
 #include "library/groupbydialog.h"
 #include "library/library.h"
 #include "library/librarybackend.h"
@@ -202,6 +205,8 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
       albums_source_(new QWidget(this)),
       songs_source_(new QWidget(this)),
       attention_source_(new QWidget(this)),
+      podcasts_source_(new QWidget(this)),
+      audiobooks_source_(new QWidget(this)),
       side_column_width_(260),
       panel_width_(280),
       now_playing_panel_(nullptr),
@@ -309,6 +314,13 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   ui_->tabs->addTab(attention_source_,
                     IconLoader::Load("dialog-warning", IconLoader::Base),
                     tr("Needs attention"));
+  ui_->tabs->addTab(podcasts_source_,
+                    IconLoader::Load("podcast", IconLoader::Base),
+                    tr("Podcasts"));
+  ui_->tabs->addTab(
+      audiobooks_source_,
+      IconLoader::Load("x-clementine-audiobook", IconLoader::Base),
+      tr("Audiobooks"));
   // The classic library tree, beside the playlist: for building a playlist
   // by hand, dragging songs across.
   ui_->tabs->addTab(library_view_,
@@ -2553,6 +2565,9 @@ void MainWindow::SetUpLayout() {
                                   ui_->playlist_sequence->repeat_button());
   ui_->playlist_sequence->hide();
   player_bar_->SetTrackSlider(ui_->track_slider);
+  // Audiobooks and podcasts: resume, speed, skip and the sleep timer.
+  listening_ = new ListeningController(app_, this);
+  player_bar_->SetListening(listening_);
 
   ui_->analyzer->setFixedWidth(96);
   player_bar_->AddTrailingWidget(ui_->analyzer);
@@ -2634,6 +2649,30 @@ void MainWindow::SetUpLayout() {
           });
   connect(library_browser_, &LibraryBrowser::FindCovers, this,
           &MainWindow::ShowCoverManager);
+
+  audiobooks_view_ = new AudiobooksView(app_, listening_, this);
+  centre_stack_->addWidget(audiobooks_view_);
+  library_browser_->SetAudiobookFolders(listening_->audiobook_folders());
+  connect(
+      listening_, &ListeningController::AudiobookFoldersChanged, this,
+      [this]() {
+        library_browser_->SetAudiobookFolders(listening_->audiobook_folders());
+      });
+  connect(library_browser_, &LibraryBrowser::AudiobooksLoaded, audiobooks_view_,
+          &AudiobooksView::SetSongs);
+  connect(audiobooks_view_, &AudiobooksView::PlayBook, this,
+          [this](const SongList& chapters, int start) {
+            PlayInOwnPlaylist("audiobooks_playlist_id", tr("Audiobooks"),
+                              chapters, start);
+          });
+
+  podcasts_view_ = new PodcastsView(app_, listening_, this);
+  centre_stack_->addWidget(podcasts_view_);
+  connect(podcasts_view_, &PodcastsView::PlayEpisodes, this,
+          [this](const SongList& episodes, int start) {
+            PlayInOwnPlaylist("podcasts_playlist_id", tr("Podcasts"), episodes,
+                              start);
+          });
   connect(library_browser_, &LibraryBrowser::AttentionCountChanged, this,
           [this](int count) {
             ui_->tabs->setTabBadge(
@@ -2676,6 +2715,12 @@ void MainWindow::SourceChanged() {
       library_browser_->ShowAlbums();
     }
     centre_stack_->setCurrentWidget(library_browser_);
+    SetSideColumnVisible(false);
+  } else if (is(audiobooks_source_)) {
+    centre_stack_->setCurrentWidget(audiobooks_view_);
+    SetSideColumnVisible(false);
+  } else if (is(podcasts_source_)) {
+    centre_stack_->setCurrentWidget(podcasts_view_);
     SetSideColumnVisible(false);
   } else if (is(now_playing_source_) || PlaylistSourcePage(wrapper)) {
     // A playlist on its own, in the middle: the one playing, or the one
@@ -2832,28 +2877,34 @@ void MainWindow::PlayFromBrowser(const SongList& songs, int start,
 
   // Browsing plays into a playlist of its own, so it never replaces one
   // you've built by hand.
+  PlayInOwnPlaylist("browse_playlist_id", tr("Library"), list, start);
+}
+
+void MainWindow::PlayInOwnPlaylist(const QString& setting, const QString& name,
+                                   const SongList& songs, int start) {
+  if (songs.isEmpty()) return;
   PlaylistManager* manager = app_->playlist_manager();
-  int id = settings_.value("browse_playlist_id", -1).toInt();
+  int id = settings_.value(setting, -1).toInt();
   bool exists = false;
   for (Playlist* playlist : manager->GetAllPlaylists()) {
     exists = exists || playlist->id() == id;
   }
   if (!exists) {
-    id = manager->New(tr("Library"));
-    settings_.setValue("browse_playlist_id", id);
+    id = manager->New(name);
+    settings_.setValue(setting, id);
   }
   manager->SetCurrentPlaylist(id);
   manager->SetActivePlaylist(id);
 
   SongMimeData* data = new SongMimeData;
   data->backend = app_->library_backend();
-  data->songs = list;
+  data->songs = songs;
   data->override_user_settings_ = true;
   data->clear_first_ = true;
   data->playlist_id = id;
   AddToPlaylist(data);
 
-  app_->player()->PlayAt(qBound(0, start, list.count() - 1), Engine::Manual,
+  app_->player()->PlayAt(qBound(0, start, songs.count() - 1), Engine::Manual,
                          true);
 }
 
@@ -2890,6 +2941,8 @@ void MainWindow::SetUpViewMenu() {
     QString key;
   };
   const QList<Source> optional = {
+      {podcasts_source_, tr("Podcasts"), "podcasts"},
+      {audiobooks_source_, tr("Audiobooks"), "audiobooks"},
       {playlist_list_, tr("All playlists"), "playlists"},
       {file_view_, tr("Files"), "files"},
       {internet_view_, tr("Internet"), "internet"},

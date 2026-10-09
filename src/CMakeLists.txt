@@ -107,6 +107,7 @@ set(SOURCES
   core/networkproxyfactory.cpp
   core/organise.cpp
   core/organiseformat.cpp
+  core/listening.cpp
   core/player.cpp
   core/qtfslistener.cpp
   core/qxtglobalshortcutbackend.cpp
@@ -227,6 +228,7 @@ set(SOURCES
 
   library/groupbydialog.cpp
   library/library.cpp
+  library/audiobooksview.cpp
   library/librarybrowser.cpp
   library/librarybackend.cpp
   library/librarydirectorymodel.cpp
@@ -320,6 +322,7 @@ set(SOURCES
   internet/podcasts/podcastinfodialog.cpp
   internet/podcasts/podcastinfowidget.cpp
   internet/podcasts/podcastservice.cpp
+  internet/podcasts/podcastsview.cpp
   internet/podcasts/podcastservicemodel.cpp
   internet/podcasts/podcastsettingspage.cpp
   internet/podcasts/podcastparser.cpp
@@ -484,6 +487,7 @@ set(HEADERS
   core/mimedata.h
   core/network.h
   core/organise.h
+  core/listening.h
   core/player.h
   core/qtfslistener.h
   core/songloader.h
@@ -579,6 +583,7 @@ set(HEADERS
 
   library/groupbydialog.h
   library/library.h
+  library/audiobooksview.h
   library/librarybrowser.h
   library/librarybackend.h
   library/librarydirectorymodel.h
@@ -658,6 +663,7 @@ set(HEADERS
   internet/podcasts/podcastinfodialog.h
   internet/podcasts/podcastinfowidget.h
   internet/podcasts/podcastservice.h
+  internet/podcasts/podcastsview.h
   internet/podcasts/podcastservicemodel.h
   internet/podcasts/podcastsettingspage.h
   internet/podcasts/podcastupdater.h

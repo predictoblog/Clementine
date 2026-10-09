@@ -274,3 +274,48 @@ QPushButton[link="true"]:hover {
   font-size: 16px;
   font-weight: 700;
 }
+
+/* Audiobooks and podcasts: the book you're partway through, how far you've
+   got, and the filters over the shelf. */
+
+#listening_hero {
+  background-color: %palette-alternate-base;
+  border-radius: 12px;
+}
+
+QProgressBar#listening_progress {
+  background-color: %palette-mid;
+  border: none;
+  border-radius: 3px;
+}
+
+QProgressBar#listening_progress::chunk {
+  background-color: %palette-link;
+  border-radius: 3px;
+}
+
+QPushButton[filter="true"] {
+  border: none;
+  border-radius: 13px;
+  min-height: 26px;
+  padding: 0px 12px;
+  background: transparent;
+  color: %palette-placeholdertext;
+  font-weight: 600;
+}
+
+QPushButton[filter="true"]:hover {
+  color: %palette-text;
+}
+
+QPushButton[filter="true"]:checked {
+  background-color: %palette-button;
+  color: %palette-text;
+}
+
+/* Speed and the sleep timer open menus; the pill says so without an arrow. */
+
+QToolButton[sequence="true"]::menu-indicator {
+  image: none;
+  width: 0px;
+}

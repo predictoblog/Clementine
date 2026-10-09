@@ -40,6 +40,12 @@ class QStackedWidget;
 class QTimer;
 class QTreeView;
 
+// A cover's stand-in while it loads, or when there's none: a soft colour
+// picked from the title.
+QImage BrowserPlaceholderCover(const QString& title, bool dark);
+// The image cropped to a square of `size` with rounded corners.
+QPixmap BrowserRoundedCover(const QImage& image, int size, qreal dpr);
+
 // One album in the browser: its songs in disc and track order, and what it
 // says about itself.
 struct BrowserAlbum {
@@ -49,6 +55,12 @@ struct BrowserAlbum {
   int year = 0;
   uint added = 0;  // the newest song's ctime
   SongList songs;
+  // For audiobooks: how far through (0 to 1, or -1 for not shown) and a line
+  // saying so.
+  double progress = -1;
+  QString status;
+  // Whatever the page showing it needs to find it again.
+  int id = -1;
 
   qint64 length_nanosec() const;
 };
@@ -93,7 +105,12 @@ class AlbumGridModel : public QAbstractListModel {
   Q_OBJECT
 
  public:
-  enum Role { Role_Artist = Qt::UserRole + 1, Role_Year };
+  enum Role {
+    Role_Artist = Qt::UserRole + 1,
+    Role_Year,
+    Role_Progress,
+    Role_Status
+  };
 
   AlbumGridModel(Application* app, QObject* parent = nullptr);
 
@@ -124,12 +141,18 @@ class AlbumGridModel : public QAbstractListModel {
 
 class AlbumGridDelegate : public QStyledItemDelegate {
  public:
-  using QStyledItemDelegate::QStyledItemDelegate;
+  // With a status line, a third line under the artist - for audiobooks,
+  // where they're up to - and a progress bar across the foot of the cover.
+  explicit AlbumGridDelegate(QObject* parent, bool status_line = false)
+      : QStyledItemDelegate(parent), status_line_(status_line) {}
 
   void paint(QPainter* painter, const QStyleOptionViewItem& option,
              const QModelIndex& index) const override;
   QSize sizeHint(const QStyleOptionViewItem& option,
                  const QModelIndex& index) const override;
+
+ private:
+  bool status_line_;
 };
 
 // The library as pages that fill the middle of the window: a grid of
@@ -161,6 +184,10 @@ class LibraryBrowser : public QWidget {
 
   Page page() const;
 
+  // Songs in these folders (and those tagged as audiobooks) are books, not
+  // music: they're left out of these pages and go to AudiobooksLoaded().
+  void SetAudiobookFolders(const QStringList& folders);
+
  signals:
   // Play `songs` from `start`, in order or shuffled.
   void PlaySongs(const SongList& songs, int start, bool shuffle);
@@ -174,6 +201,8 @@ class LibraryBrowser : public QWidget {
   void FindCovers();
   // How many albums and songs Needs attention lists.
   void AttentionCountChanged(int count);
+  // The library's audiobooks, each time it loads.
+  void AudiobooksLoaded(const SongList& songs);
 
  private slots:
   void Reload();
@@ -192,8 +221,10 @@ class LibraryBrowser : public QWidget {
   struct LoadResult {
     SongList songs;
     QList<BrowserAlbum> albums;
+    SongList audiobooks;
   };
-  static LoadResult Load(Application* app);
+  static LoadResult Load(Application* app,
+                         const QStringList& audiobook_folders);
 
   QWidget* MakeAlbumsPage();
   QWidget* MakeAlbumPage();
@@ -218,6 +249,7 @@ class LibraryBrowser : public QWidget {
 
   SongList songs_;
   Song current_song_;
+  QStringList audiobook_folders_;
 
   // Albums
   AlbumGridModel* grid_model_;

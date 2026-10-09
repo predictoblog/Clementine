@@ -60,7 +60,10 @@ class GlobalSearchView;
 class GlobalShortcuts;
 class GroupByDialog;
 class Library;
+class AudiobooksView;
 class LibraryBrowser;
+class ListeningController;
+class PodcastsView;
 class LibraryViewContainer;
 class MimeData;
 class MultiLoadingIndicator;
@@ -318,6 +321,11 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   void SourceChanged();
   void SetSideColumnVisible(bool visible);
   void PlayFromBrowser(const SongList& songs, int start, bool shuffle);
+  // Plays into a playlist kept for the purpose - Library, Audiobooks,
+  // Podcasts - remembered under `setting`, so hand-built playlists are
+  // never replaced.
+  void PlayInOwnPlaylist(const QString& setting, const QString& name,
+                         const SongList& songs, int start);
   // Looks these songs up on MusicBrainz and offers what it finds.
   void AutoCompleteTagsFor(const SongList& songs);
   // The source list's row for each open playlist.
@@ -369,12 +377,17 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   PlayerBar* player_bar_;
   QStackedWidget* centre_stack_;
   LibraryBrowser* library_browser_;
+  ListeningController* listening_;
+  AudiobooksView* audiobooks_view_;
+  PodcastsView* podcasts_view_;
   // Empty pages standing for the entries that fill the middle of the window
   // rather than the sidebar's column.
   QWidget* now_playing_source_;
   QWidget* albums_source_;
   QWidget* songs_source_;
   QWidget* attention_source_;
+  QWidget* podcasts_source_;
+  QWidget* audiobooks_source_;
   int side_column_width_;
   int panel_width_;
   NowPlayingPanel* now_playing_panel_;

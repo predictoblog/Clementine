@@ -17,17 +17,22 @@
 #include "playerbar.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include "core/appearance.h"
 #include "core/application.h"
+#include "core/listening.h"
 #include "core/player.h"
 #include "covers/currentartloader.h"
+#include "ui/iconloader.h"
 
 namespace {
 
@@ -91,6 +96,13 @@ PlayerBar::PlayerBar(QWidget* parent)
       play_pause_(new AccentPlayButton(this)),
       next_(nullptr),
       centre_(new QVBoxLayout),
+      shuffle_(nullptr),
+      repeat_(nullptr),
+      listening_(nullptr),
+      speed_(nullptr),
+      skip_back_(nullptr),
+      skip_forward_(nullptr),
+      sleep_(nullptr),
       trailing_(new QHBoxLayout),
       volume_(nullptr) {
   setObjectName("player_bar");
@@ -203,9 +215,137 @@ void PlayerBar::SetSequenceButtons(QToolButton* shuffle, QToolButton* repeat) {
     button->setMinimumHeight(30);
     button->setProperty("sequence", true);
   }
+  shuffle_ = shuffle;
+  repeat_ = repeat;
   // Shuffle before the transport, repeat after it, like a phone's player.
   transport_->insertWidget(transport_->indexOf(previous_), shuffle);
   transport_->insertWidget(transport_->indexOf(next_) + 1, repeat);
+}
+
+void PlayerBar::SetListening(ListeningController* listening) {
+  listening_ = listening;
+
+  skip_back_ = MakeTransportButton();
+  skip_back_->setIcon(
+      IconLoader::Load("media-seek-backward", IconLoader::Base));
+  skip_back_->setToolTip(
+      tr("Back %1 seconds").arg(ListeningController::kSkipBackSeconds));
+  skip_forward_ = MakeTransportButton();
+  skip_forward_->setIcon(
+      IconLoader::Load("media-seek-forward", IconLoader::Base));
+  skip_forward_->setToolTip(
+      tr("Forward %1 seconds").arg(ListeningController::kSkipForwardSeconds));
+  connect(skip_back_, SIGNAL(clicked()), listening_, SLOT(SkipBack()));
+  connect(skip_forward_, SIGNAL(clicked()), listening_, SLOT(SkipForward()));
+
+  // Speed: a labelled pill like shuffle and repeat, with the speeds in its
+  // menu.
+  speed_ = new QToolButton(this);
+  speed_->setAutoRaise(true);
+  speed_->setMinimumHeight(30);
+  speed_->setProperty("sequence", true);
+  speed_->setCheckable(true);
+  speed_->setToolTip(tr("Playback speed"));
+  speed_->setPopupMode(QToolButton::InstantPopup);
+  QMenu* speeds = new QMenu(speed_);
+  QActionGroup* speed_group = new QActionGroup(speeds);
+  for (double speed : ListeningController::Speeds()) {
+    QAction* action = speeds->addAction(ListeningController::SpeedText(speed));
+    action->setCheckable(true);
+    action->setData(speed);
+    speed_group->addAction(action);
+    connect(action, &QAction::triggered, listening_,
+            [this, speed]() { listening_->SetSpeed(speed); });
+  }
+  speed_->setMenu(speeds);
+
+  sleep_ = new QToolButton(this);
+  sleep_->setAutoRaise(true);
+  sleep_->setMinimumHeight(30);
+  sleep_->setIconSize(QSize(16, 16));
+  sleep_->setProperty("sequence", true);
+  sleep_->setIcon(IconLoader::Load("x-clementine-sleep", IconLoader::Base));
+  sleep_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  sleep_->setPopupMode(QToolButton::InstantPopup);
+  QMenu* sleep = new QMenu(sleep_);
+  struct Choice {
+    QString text;
+    int minutes;
+  };
+  const QList<Choice> choices = {
+      {tr("Off"), 0},
+      {tr("In 15 minutes"), 15},
+      {tr("In 30 minutes"), 30},
+      {tr("In 45 minutes"), 45},
+      {tr("In an hour"), 60},
+      {tr("At the end of this chapter"), -1},
+  };
+  for (const Choice& choice : choices) {
+    const int minutes = choice.minutes;
+    QAction* action = sleep->addAction(choice.text);
+    connect(action, &QAction::triggered, listening_,
+            [this, minutes]() { listening_->SetSleepTimer(minutes); });
+    if (minutes == 0) sleep->addSeparator();
+  }
+  sleep_->setMenu(sleep);
+
+  transport_->insertWidget(transport_->indexOf(previous_), skip_back_);
+  transport_->insertWidget(transport_->indexOf(skip_back_), speed_);
+  transport_->insertWidget(transport_->indexOf(next_) + 1, skip_forward_);
+  transport_->insertWidget(transport_->indexOf(skip_forward_) + 1, sleep_);
+
+  connect(listening_, SIGNAL(SpokenChanged(bool)), SLOT(SpokenChanged(bool)));
+  connect(listening_, SIGNAL(SpeedChanged(double)),
+          SLOT(UpdateListeningButtons()));
+  connect(listening_, SIGNAL(SleepTimerChanged()),
+          SLOT(UpdateListeningButtons()));
+  // The minutes left count down on the sleep button.
+  QTimer* tick = new QTimer(this);
+  tick->setInterval(20 * 1000);
+  connect(tick, SIGNAL(timeout()), SLOT(UpdateListeningButtons()));
+  tick->start();
+
+  UpdateListeningButtons();
+  SpokenChanged(listening_->spoken());
+}
+
+void PlayerBar::SpokenChanged(bool spoken) {
+  for (QWidget* widget :
+       {static_cast<QWidget*>(speed_), static_cast<QWidget*>(skip_back_),
+        static_cast<QWidget*>(skip_forward_), static_cast<QWidget*>(sleep_)}) {
+    if (widget) widget->setVisible(spoken);
+  }
+  for (QWidget* widget :
+       {static_cast<QWidget*>(shuffle_), static_cast<QWidget*>(repeat_)}) {
+    if (widget) widget->setVisible(!spoken);
+  }
+}
+
+void PlayerBar::UpdateListeningButtons() {
+  if (!listening_) return;
+  const double speed = listening_->speed();
+  speed_->setText(ListeningController::SpeedText(speed));
+  speed_->setChecked(speed != 1.0);
+  for (QAction* action : speed_->menu()->actions()) {
+    action->setChecked(qFuzzyCompare(action->data().toDouble(), speed));
+  }
+
+  const int minutes = listening_->sleep_minutes_left();
+  if (minutes < 0) {
+    sleep_->setText(tr("End of chapter"));
+  } else if (minutes > 0) {
+    sleep_->setText(tr("%1 min").arg(minutes));
+  } else {
+    sleep_->setText(QString());
+  }
+  sleep_->setToolButtonStyle(minutes != 0 ? Qt::ToolButtonTextBesideIcon
+                                          : Qt::ToolButtonIconOnly);
+  sleep_->setToolTip(minutes == 0
+                         ? tr("Sleep timer")
+                         : tr("Sleep timer: pauses %1")
+                               .arg(minutes < 0
+                                        ? tr("at the end of this chapter")
+                                        : tr("in %n minute(s)", "", minutes)));
 }
 
 void PlayerBar::SetTrackSlider(QWidget* slider) {
