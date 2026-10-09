@@ -65,6 +65,10 @@ void StretchHeaderView::NormaliseWidths(const QList<int>& sections) {
 
 void StretchHeaderView::UpdateWidths(const QList<int>& sections) {
   if (!stretch_enabled_) return;
+  // A header with no width yet - its view not shown, behind another page -
+  // would make every column zero pixels wide and hide them all, and the
+  // view would have nothing to draw once shown. Wait until it has a width.
+  if (width() <= 0) return;
 
   ColumnWidthType total_w = 0.0;
 
