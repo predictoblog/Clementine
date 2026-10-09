@@ -79,6 +79,8 @@ GstEnginePipeline::GstEnginePipeline(GstEngine* engine)
       pipeline_is_initialised_(false),
       pipeline_is_connected_(false),
       pending_seek_nanosec_(-1),
+      rate_(1.0),
+      applied_rate_(1.0),
       last_known_position_ns_(0),
       volume_percent_(100),
       volume_modifier_(1.0),
@@ -92,6 +94,7 @@ GstEnginePipeline::GstEnginePipeline(GstEngine* engine)
       equalizer_(nullptr),
       stereo_panorama_(nullptr),
       volume_(nullptr),
+      scaletempo_(nullptr),
       audioscale_(nullptr),
       audiosink_(nullptr),
       capsfilter_(nullptr),
@@ -274,6 +277,12 @@ bool GstEnginePipeline::InitAudioBin() {
   volume_ = engine_->CreateElement("volume", audiobin_);
   audioscale_ = engine_->CreateElement("audioresample", audiobin_);
   convert = engine_->CreateElement("audioconvert", audiobin_);
+  // Optional: without it, speed changes are simply unavailable.
+  GstElement* tempo_convert = nullptr;
+  scaletempo_ = engine_->CreateElement("scaletempo", audiobin_, false);
+  if (scaletempo_) {
+    tempo_convert = engine_->CreateElement("audioconvert", audiobin_);
+  }
   capsfilter_ = engine_->CreateElement("capsfilter", audiobin_);
 
   if (!queue_ || !audioconvert_ || !tee_ || !probe_queue || !probe_converter ||
@@ -424,9 +433,14 @@ bool GstEnginePipeline::InitAudioBin() {
   // Link the analyzer output of the tee
   gst_element_link(probe_queue, probe_converter);
 
-  gst_element_link_many(audio_queue, equalizer_preamp_, equalizer_,
-                        stereo_panorama_, volume_, audioscale_, convert,
-                        nullptr);
+  if (scaletempo_ && tempo_convert) {
+    gst_element_link_many(audio_queue, tempo_convert, scaletempo_,
+                          equalizer_preamp_, nullptr);
+  } else {
+    gst_element_link(audio_queue, equalizer_preamp_);
+  }
+  gst_element_link_many(equalizer_preamp_, equalizer_, stereo_panorama_,
+                        volume_, audioscale_, convert, nullptr);
 
   // We only limit the media type to raw audio.
   // Let the audio output of the tee autonegotiate the bit depth and format.
@@ -763,6 +777,9 @@ void GstEnginePipeline::StateChangedMessageReceived(GstMessage* msg) {
     if (pending_seek_nanosec_ != -1 && pipeline_is_connected_) {
       QMetaObject::invokeMethod(this, "Seek", Qt::QueuedConnection,
                                 Q_ARG(qint64, pending_seek_nanosec_));
+    } else if (rate_ != 1.0 && pipeline_is_connected_) {
+      QMetaObject::invokeMethod(this, "Seek", Qt::QueuedConnection,
+                                Q_ARG(qint64, position()));
     }
   }
 
@@ -1161,8 +1178,25 @@ bool GstEnginePipeline::Seek(qint64 nanosec) {
 
   pending_seek_nanosec_ = -1;
   last_known_position_ns_ = nanosec;
-  return gst_element_seek_simple(pipeline_, GST_FORMAT_TIME,
-                                 GST_SEEK_FLAG_FLUSH, nanosec);
+  if (rate_ == 1.0 && applied_rate_ == 1.0) {
+    return gst_element_seek_simple(pipeline_, GST_FORMAT_TIME,
+                                   GST_SEEK_FLAG_FLUSH, nanosec);
+  }
+  // A seek carries the speed: the segment it starts plays at rate_.
+  applied_rate_ = rate_;
+  return gst_element_seek(
+      pipeline_, rate_, GST_FORMAT_TIME,
+      static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE),
+      GST_SEEK_TYPE_SET, nanosec, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+}
+
+void GstEnginePipeline::SetPlaybackRate(double rate) {
+  if (!scaletempo_) rate = 1.0;
+  rate_ = rate;
+  if (rate_ == applied_rate_ && rate_ == 1.0) return;
+  if (pipeline_is_connected_ && pipeline_is_initialised_) {
+    Seek(position());
+  }
 }
 
 void GstEnginePipeline::SetEqualizerEnabled(bool enabled) {

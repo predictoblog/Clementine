@@ -108,6 +108,8 @@ class Base : public QObject {
   virtual void SetEqualizerParameters(int preamp, const QList<int>& bandGains) {
   }
   virtual void SetStereoBalance(float value) {}
+  // Plays faster or slower without changing the pitch: 1.0 is normal speed.
+  virtual void SetPlaybackRate(double rate) {}
 
  signals:
   // Emitted when crossfading is enabled and the track is crossfade_duration_
