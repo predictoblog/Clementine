@@ -404,6 +404,7 @@ set(SOURCES
   ui/playbacksettingspage.cpp
   ui/playerbar.cpp
   ui/qtsystemtrayicon.cpp
+  ui/miniplayer.cpp
   ui/queuepanel.cpp
   ui/screensaver.cpp
   ui/screenshottaker.cpp
@@ -732,6 +733,7 @@ set(HEADERS
   ui/playbacksettingspage.h
   ui/playerbar.h
   ui/qtsystemtrayicon.h
+  ui/miniplayer.h
   ui/queuepanel.h
   ui/screenshottaker.h
   ui/settingscategory.h

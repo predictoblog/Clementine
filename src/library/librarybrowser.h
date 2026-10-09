@@ -78,6 +78,7 @@ class SongTableModel : public QAbstractTableModel {
     Column_Plays,
     Column_Length,
     Column_Missing,  // which tags a song lacks, for Needs attention
+    Column_Folder,   // where the file is, to tell duplicates apart
     ColumnCount
   };
 
@@ -163,7 +164,21 @@ class LibraryBrowser : public QWidget {
   Q_OBJECT
 
  public:
-  enum Page { Page_Albums = 0, Page_Album, Page_Songs, Page_Attention };
+  enum Page {
+    Page_Albums = 0,
+    Page_Album,
+    Page_Songs,
+    Page_Attention,
+    Page_Smart
+  };
+
+  // Lists the library keeps up to date by itself.
+  enum SmartView {
+    Smart_RecentlyAdded = 0,
+    Smart_MostPlayed,
+    Smart_RecentlyPlayed,
+    Smart_Favorites
+  };
 
   LibraryBrowser(Application* app, QWidget* parent = nullptr);
 
@@ -171,12 +186,17 @@ class LibraryBrowser : public QWidget {
   void ShowSongs();
   // What's missing: albums without cover art, songs without their tags.
   void ShowAttention();
+  void ShowSmart(SmartView view);
   int attention_count() const { return attention_count_; }
 
   // The tags a song should have and doesn't: title, artist, album, track,
   // year - the ones a MusicBrainz lookup can fill in.
   static QStringList MissingTags(const Song& song);
   static bool HasCoverArt(const Song& song);
+  // Songs that look like the same recording: the same artist and title
+  // (ignoring case and punctuation) and lengths within a few seconds. Each
+  // group's songs are next to each other.
+  static QList<SongList> FindDuplicates(const SongList& songs);
   // The album page for the first album with this title, if there is one.
   bool ShowAlbum(const QString& title);
   // The album page for the first album in the grid; false if there's none.
@@ -231,6 +251,8 @@ class LibraryBrowser : public QWidget {
   QWidget* MakeSongsPage();
   QTreeView* MakeSongTable(SongTableModel* model);
   QWidget* MakeAttentionPage();
+  QWidget* MakeSmartPage();
+  void UpdateSmart();
   QListView* MakeAlbumGrid(AlbumGridModel* model);
   void UpdateAttention();
   void ShowSongMenu(QTreeView* table, SongTableModel* model, const QPoint& pos);
@@ -283,6 +305,17 @@ class LibraryBrowser : public QWidget {
   QWidget* attention_albums_box_;
   QLabel* attention_albums_label_;
   QWidget* attention_songs_box_;
+  // Smart views
+  SmartView smart_view_ = Smart_RecentlyAdded;
+  QLabel* smart_title_ = nullptr;
+  QLabel* smart_summary_ = nullptr;
+  QLabel* smart_empty_ = nullptr;
+  QTreeView* smart_table_ = nullptr;
+  SongTableModel* smart_songs_ = nullptr;
+
+  QWidget* attention_duplicates_box_ = nullptr;
+  QLabel* attention_duplicates_label_ = nullptr;
+  SongTableModel* attention_duplicates_ = nullptr;
   QLabel* attention_songs_label_;
   QTreeView* attention_table_;
 };

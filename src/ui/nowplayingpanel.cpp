@@ -59,9 +59,19 @@ NowPlayingPanel::NowPlayingPanel(QWidget* parent)
   close->setToolTip(tr("Hide the Now playing panel"));
   connect(close, SIGNAL(clicked()), SIGNAL(CloseRequested()));
 
+  // The visualisations, full screen or in a window, a click from the cover.
+  QToolButton* visualise = new QToolButton(this);
+  visualise->setAutoRaise(true);
+  visualise->setIcon(
+      IconLoader::Load("view-media-visualization", IconLoader::Base));
+  visualise->setIconSize(QSize(16, 16));
+  visualise->setToolTip(tr("Visualizations"));
+  connect(visualise, SIGNAL(clicked()), SIGNAL(VisualizationsRequested()));
+
   QHBoxLayout* header = new QHBoxLayout;
   header->addWidget(heading);
   header->addStretch();
+  header->addWidget(visualise);
   header->addWidget(close);
   layout_->addLayout(header);
 

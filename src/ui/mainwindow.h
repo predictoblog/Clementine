@@ -62,6 +62,7 @@ class GroupByDialog;
 class Library;
 class AudiobooksView;
 class LibraryBrowser;
+class MiniPlayer;
 class ListeningController;
 class PodcastsView;
 class LibraryViewContainer;
@@ -380,6 +381,7 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   ListeningController* listening_;
   AudiobooksView* audiobooks_view_;
   PodcastsView* podcasts_view_;
+  MiniPlayer* mini_player_;
   // Empty pages standing for the entries that fill the middle of the window
   // rather than the sidebar's column.
   QWidget* now_playing_source_;
@@ -388,6 +390,8 @@ class MainWindow : public QMainWindow, public PlatformInterface {
   QWidget* attention_source_;
   QWidget* podcasts_source_;
   QWidget* audiobooks_source_;
+  // The Smart views section's rows, and the view each shows.
+  QMap<QWidget*, int> smart_sources_;
   int side_column_width_;
   int panel_width_;
   NowPlayingPanel* now_playing_panel_;

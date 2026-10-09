@@ -41,6 +41,7 @@
 #include <QtDebug>
 #include <cmath>
 #include <memory>
+#include <tuple>
 
 #include "core/appearance.h"
 #include "core/application.h"
@@ -120,6 +121,7 @@
 #include "ui/equalizer.h"
 #include "ui/iconloader.h"
 #include "ui/lovedialog.h"
+#include "ui/miniplayer.h"
 #include "ui/nowplayingpanel.h"
 #include "ui/organisedialog.h"
 #include "ui/organiseerrordialog.h"
@@ -328,6 +330,23 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
                     tr("Library"));
   ui_->tabs->addTab(file_view_, IconLoader::Load("folder", IconLoader::Base),
                     tr("Files"));
+  // Lists that keep themselves up to date.
+  ui_->tabs->addSection(tr("Smart views"));
+  const QList<std::tuple<LibraryBrowser::SmartView, QString, QString>> smart = {
+      {LibraryBrowser::Smart_RecentlyAdded, "list-add", tr("Recently added")},
+      {LibraryBrowser::Smart_MostPlayed, "media-playlist-repeat",
+       tr("Most played")},
+      {LibraryBrowser::Smart_RecentlyPlayed, "edit-undo",
+       tr("Recently played")},
+      {LibraryBrowser::Smart_Favorites, "rate-enabled", tr("Favorites")},
+  };
+  for (const auto& view : smart) {
+    QWidget* page = new QWidget(this);
+    smart_sources_[page] = std::get<0>(view);
+    ui_->tabs->addTab(page,
+                      IconLoader::Load(std::get<1>(view), IconLoader::Base),
+                      std::get<2>(view));
+  }
   // Each open playlist gets a row here as it opens (AddPlaylistSource()),
   // above the saved ones.
   ui_->tabs->addSection(tr("Playlists"));
@@ -1196,7 +1215,10 @@ MainWindow::MainWindow(Application* app, SystemTrayIcon* tray_icon, OSD* osd,
   qLog(Debug) << "Started";
 }
 
-MainWindow::~MainWindow() { delete ui_; }
+MainWindow::~MainWindow() {
+  delete mini_player_;
+  delete ui_;
+}
 
 void MainWindow::ReloadSettings() {
 #ifndef Q_OS_DARWIN
@@ -2693,6 +2715,12 @@ void MainWindow::SetUpLayout() {
 
   connect(action_show_now_playing_panel_, &QAction::toggled, this,
           &MainWindow::SetNowPlayingPanelVisible);
+  connect(now_playing_panel_, &NowPlayingPanel::VisualizationsRequested, this,
+          [this]() {
+            if (ui_->action_visualisations->isEnabled()) {
+              ui_->action_visualisations->trigger();
+            }
+          });
   connect(now_playing_panel_, &NowPlayingPanel::CloseRequested, this,
           [this]() { action_show_now_playing_panel_->setChecked(false); });
   connect(player_bar_, &PlayerBar::NowPlayingClicked, this,
@@ -2705,13 +2733,23 @@ void MainWindow::SourceChanged() {
     return wrapper && (wrapper == page || wrapper->isAncestorOf(page));
   };
 
-  if (is(albums_source_) || is(songs_source_) || is(attention_source_)) {
-    if (is(attention_source_)) {
+  QWidget* smart = nullptr;
+  for (QWidget* page : smart_sources_.keys()) {
+    if (is(page)) smart = page;
+  }
+
+  if (is(albums_source_) || is(songs_source_) || is(attention_source_) ||
+      smart) {
+    if (smart) {
+      library_browser_->ShowSmart(
+          LibraryBrowser::SmartView(smart_sources_[smart]));
+    } else if (is(attention_source_)) {
       library_browser_->ShowAttention();
     } else if (is(songs_source_)) {
       library_browser_->ShowSongs();
     } else if (library_browser_->page() == LibraryBrowser::Page_Songs ||
-               library_browser_->page() == LibraryBrowser::Page_Attention) {
+               library_browser_->page() == LibraryBrowser::Page_Attention ||
+               library_browser_->page() == LibraryBrowser::Page_Smart) {
       library_browser_->ShowAlbums();
     }
     centre_stack_->setCurrentWidget(library_browser_);
@@ -2931,6 +2969,25 @@ void MainWindow::SetUpViewMenu() {
   ui_->menu_tools->removeAction(ui_->action_toggle_show_sidebar);
   view->addAction(ui_->action_toggle_show_sidebar);
   view->addAction(action_show_now_playing_panel_);
+
+  // The mini player: a small window on top, in place of this one.
+  mini_player_ = new MiniPlayer(app_, nullptr);
+  mini_player_->SetActions(ui_->action_previous_track, ui_->action_play_pause,
+                           ui_->action_next_track);
+  QAction* mini = view->addAction(
+      IconLoader::Load("view-fullscreen", IconLoader::Base), tr("Mini player"));
+  mini->setShortcut(QKeySequence("Ctrl+Shift+M"));
+  connect(mini, &QAction::triggered, this, [this]() {
+    mini_player_->show();
+    mini_player_->raise();
+    hide();
+  });
+  connect(mini_player_, &MiniPlayer::ExpandRequested, this, [this]() {
+    mini_player_->hide();
+    show();
+    raise();
+    activateWindow();
+  });
   view->addSeparator();
 
   // Sources people may not use, which can be hidden from the source list.

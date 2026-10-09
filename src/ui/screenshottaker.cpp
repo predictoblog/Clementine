@@ -51,6 +51,7 @@
 #include "playlist/playlist.h"
 #include "playlist/playlistmanager.h"
 #include "ui/mainwindow.h"
+#include "ui/miniplayer.h"
 #include "ui/nowplayingpanel.h"
 #include "ui/settingsdialog.h"
 #include "widgets/fancytabwidget.h"
@@ -333,6 +334,16 @@ void ScreenshotTaker::TakeMainWindow(const QString& prefix) {
     panel->SetCurrentPage(NowPlayingPanel::Page_Lyrics);
   }
   tabs->setCurrentIndex(0);
+
+  // The mini player, on its own.
+  for (QWidget* widget : QApplication::topLevelWidgets()) {
+    MiniPlayer* mini = qobject_cast<MiniPlayer*>(widget);
+    if (!mini) continue;
+    mini->show();
+    Wait(kPaintDelayMsec);
+    Save(mini, QString("%1mini-player").arg(prefix));
+    mini->hide();
+  }
 }
 
 void ScreenshotTaker::TakeSettings(const QString& prefix) {
@@ -345,7 +356,7 @@ void ScreenshotTaker::TakeSettings(const QString& prefix) {
     if (dialog) break;
   }
   QTreeWidget* list =
-      dialog ? dialog->findChild<QTreeWidget*>("list") : nullptr;
+      dialog ? dialog->findChild<QTreeWidget*>("settings_list") : nullptr;
   if (!list) {
     qLog(Error) << "Couldn't find the settings dialog's pages";
     ++failures_;

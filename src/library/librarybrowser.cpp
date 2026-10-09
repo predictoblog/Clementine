@@ -18,6 +18,8 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -29,6 +31,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -37,10 +40,12 @@
 #include <QVBoxLayout>
 #include <QtConcurrentRun>
 #include <algorithm>
+#include <tuple>
 
 #include "core/appearance.h"
 #include "core/application.h"
 #include "core/listening.h"
+#include "core/timeconstants.h"
 #include "core/utilities.h"
 #include "covers/albumcoverloader.h"
 #include "covers/albumcoverloaderoptions.h"
@@ -159,6 +164,9 @@ QVariant SongTableModel::data(const QModelIndex& index, int role) const {
           return SongTime(song);
         case Column_Missing:
           return LibraryBrowser::MissingTags(song).join(", ");
+        case Column_Folder:
+          return QDir::toNativeSeparators(
+              QFileInfo(song.url().toLocalFile()).path());
       }
       break;
 
@@ -215,6 +223,8 @@ QVariant SongTableModel::headerData(int section, Qt::Orientation orientation,
       return tr("Time");
     case Column_Missing:
       return tr("Missing");
+    case Column_Folder:
+      return tr("Folder");
   }
   return QVariant();
 }
@@ -449,6 +459,7 @@ LibraryBrowser::LibraryBrowser(Application* app, QWidget* parent)
   pages_->addWidget(MakeAlbumPage());
   pages_->addWidget(MakeSongsPage());
   pages_->addWidget(MakeAttentionPage());
+  pages_->addWidget(MakeSmartPage());
 
   // Reload when the library changes, once things settle: a scan reports
   // songs in batches.
@@ -723,6 +734,7 @@ QTreeView* LibraryBrowser::MakeSongTable(SongTableModel* model) {
   header->resizeSection(SongTableModel::Column_Plays, 56);
   header->resizeSection(SongTableModel::Column_Length, 60);
   table->setColumnHidden(SongTableModel::Column_Missing, true);
+  table->setColumnHidden(SongTableModel::Column_Folder, true);
 
   table->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(table, &QWidget::customContextMenuRequested, this,
@@ -759,6 +771,133 @@ bool LibraryBrowser::ShowFirstAlbum() {
 
 void LibraryBrowser::ShowAttention() {
   pages_->setCurrentIndex(Page_Attention);
+}
+
+void LibraryBrowser::ShowSmart(SmartView view) {
+  smart_view_ = view;
+  UpdateSmart();
+  pages_->setCurrentIndex(Page_Smart);
+}
+
+QWidget* LibraryBrowser::MakeSmartPage() {
+  QWidget* page = new QWidget(this);
+  QVBoxLayout* layout = new QVBoxLayout(page);
+  layout->setContentsMargins(28, 22, 20, 0);
+  layout->setSpacing(14);
+
+  smart_title_ = new QLabel(page);
+  smart_title_->setProperty("page_title", true);
+  smart_summary_ = new QLabel(page);
+  smart_summary_->setForegroundRole(QPalette::PlaceholderText);
+  QVBoxLayout* heading = new QVBoxLayout;
+  heading->setSpacing(2);
+  heading->addWidget(smart_title_);
+  heading->addWidget(smart_summary_);
+
+  smart_songs_ = new SongTableModel(this);
+  QPushButton* play = MakeButton(tr("Play"), "media-playback-start", true);
+  QPushButton* shuffle =
+      MakeButton(tr("Shuffle"), "media-playlist-shuffle", false);
+  connect(play, &QPushButton::clicked, this,
+          [this]() { emit PlaySongs(smart_songs_->songs(), 0, false); });
+  connect(shuffle, &QPushButton::clicked, this,
+          [this]() { emit PlaySongs(smart_songs_->songs(), 0, true); });
+
+  QHBoxLayout* header = new QHBoxLayout;
+  header->setSpacing(10);
+  header->addLayout(heading);
+  header->addStretch();
+  header->addWidget(play, 0, Qt::AlignTop);
+  header->addWidget(shuffle, 0, Qt::AlignTop);
+  layout->addLayout(header);
+
+  smart_empty_ = new QLabel(page);
+  smart_empty_->setWordWrap(true);
+  smart_empty_->setForegroundRole(QPalette::PlaceholderText);
+  layout->addWidget(smart_empty_);
+
+  smart_table_ = MakeSongTable(smart_songs_);
+  smart_table_->setColumnHidden(SongTableModel::Column_Track, true);
+  connect(smart_table_, &QTreeView::activated, this,
+          [this](const QModelIndex& i) {
+            emit PlaySongs(smart_songs_->songs(), i.row(), false);
+          });
+  layout->addWidget(smart_table_, 1);
+  return page;
+}
+
+void LibraryBrowser::UpdateSmart() {
+  if (!smart_table_) return;
+  const int kLimit = 100;
+  SongList songs;
+  QString title, empty;
+
+  switch (smart_view_) {
+    case Smart_RecentlyAdded:
+      title = tr("Recently added");
+      empty = tr("Songs you add to your library show up here.");
+      songs = songs_;
+      std::stable_sort(
+          songs.begin(), songs.end(),
+          [](const Song& a, const Song& b) { return a.ctime() > b.ctime(); });
+      break;
+    case Smart_MostPlayed:
+      title = tr("Most played");
+      empty = tr("The songs you play most show up here.");
+      for (const Song& song : songs_) {
+        if (song.playcount() > 0) songs << song;
+      }
+      std::stable_sort(songs.begin(), songs.end(),
+                       [](const Song& a, const Song& b) {
+                         return a.playcount() > b.playcount();
+                       });
+      break;
+    case Smart_RecentlyPlayed:
+      title = tr("Recently played");
+      empty = tr("Songs you've played show up here, the latest first.");
+      for (const Song& song : songs_) {
+        if (song.lastplayed() > 0) songs << song;
+      }
+      std::stable_sort(songs.begin(), songs.end(),
+                       [](const Song& a, const Song& b) {
+                         return a.lastplayed() > b.lastplayed();
+                       });
+      break;
+    case Smart_Favorites:
+      title = tr("Favorites");
+      empty =
+          tr("Songs you rate four stars or more, or love with the heart "
+             "in the player bar, show up here.");
+      for (const Song& song : songs_) {
+        if (song.rating() >= 0.8f) songs << song;
+      }
+      std::stable_sort(
+          songs.begin(), songs.end(), [](const Song& a, const Song& b) {
+            return std::make_tuple(a.artist(), a.album(), a.disc(), a.track()) <
+                   std::make_tuple(b.artist(), b.album(), b.disc(), b.track());
+          });
+      break;
+  }
+  songs = songs.mid(0, kLimit);
+
+  smart_title_->setText(title);
+  smart_summary_->setText(
+      Count(songs.count(), tr("%1 song"), tr("%1 songs")) +
+      (songs.isEmpty() ? QString()
+                       : QString::fromUtf8(" · ") +
+                             Utilities::PrettyTimeNanosec([&songs]() {
+                               qint64 total = 0;
+                               for (const Song& s : songs)
+                                 total += qMax<qint64>(0, s.length_nanosec());
+                               return total;
+                             }())));
+  smart_empty_->setText(empty);
+  smart_empty_->setVisible(songs.isEmpty());
+  smart_table_->setVisible(!songs.isEmpty());
+  smart_table_->setColumnHidden(SongTableModel::Column_Plays,
+                                smart_view_ != Smart_MostPlayed);
+  smart_songs_->SetSongs(songs);
+  smart_songs_->SetCurrentSong(current_song_);
 }
 
 QStringList LibraryBrowser::MissingTags(const Song& song) {
@@ -914,6 +1053,31 @@ QWidget* LibraryBrowser::MakeAttentionPage() {
   songs->addWidget(attention_table_, 1);
   layout->addWidget(attention_songs_box_, 1);
 
+  // The same song more than once.
+  attention_duplicates_ = new SongTableModel(this);
+  attention_duplicates_box_ = new QWidget(page);
+  QVBoxLayout* duplicates = new QVBoxLayout(attention_duplicates_box_);
+  duplicates->setContentsMargins(0, 0, 0, 0);
+  duplicates->setSpacing(8);
+  attention_duplicates_label_ = new QLabel(attention_duplicates_box_);
+  attention_duplicates_label_->setProperty("section_title", true);
+  QLabel* duplicates_hint = new QLabel(
+      tr("The same artist and title, about the same length. Right-click to "
+         "play or edit one."),
+      attention_duplicates_box_);
+  duplicates_hint->setForegroundRole(QPalette::PlaceholderText);
+  duplicates->addWidget(attention_duplicates_label_);
+  duplicates->addWidget(duplicates_hint);
+  QTreeView* duplicates_table = MakeSongTable(attention_duplicates_);
+  duplicates_table->setColumnHidden(SongTableModel::Column_Plays, true);
+  duplicates_table->setColumnHidden(SongTableModel::Column_Track, true);
+  duplicates_table->setColumnHidden(SongTableModel::Column_Folder, false);
+  duplicates_table->setTextElideMode(Qt::ElideMiddle);
+  duplicates_table->header()->setSectionResizeMode(
+      SongTableModel::Column_Folder, QHeaderView::Stretch);
+  duplicates->addWidget(duplicates_table, 1);
+  layout->addWidget(attention_duplicates_box_, 1);
+
   // Both act on the selected songs, or all of them if none are.
   auto chosen = [this]() {
     SongList songs;
@@ -944,8 +1108,17 @@ void LibraryBrowser::UpdateAttention() {
     if (!MissingTags(song).isEmpty()) untagged << song;
   }
 
+  const QList<SongList> groups = FindDuplicates(songs_);
+  SongList duplicates;
+  for (const SongList& group : groups) duplicates << group;
+
   attention_albums_->SetAlbums(without_art);
   attention_songs_->SetSongs(untagged);
+  attention_duplicates_->SetSongs(duplicates);
+  attention_duplicates_box_->setVisible(!groups.isEmpty());
+  attention_duplicates_label_->setText(Count(groups.count(),
+                                             tr("%1 possible duplicate"),
+                                             tr("%1 possible duplicates")));
 
   attention_albums_box_->setVisible(!without_art.isEmpty());
   attention_albums_label_->setText(Count(without_art.count(),
@@ -956,7 +1129,7 @@ void LibraryBrowser::UpdateAttention() {
                                         tr("%1 song with missing tags"),
                                         tr("%1 songs with missing tags")));
 
-  const int count = without_art.count() + untagged.count();
+  const int count = without_art.count() + untagged.count() + groups.count();
   attention_all_clear_->setVisible(count == 0);
   attention_summary_->setText(
       count == 0 ? tr("Nothing to fix")
@@ -966,6 +1139,40 @@ void LibraryBrowser::UpdateAttention() {
     attention_count_ = count;
     emit AttentionCountChanged(count);
   }
+}
+
+QList<SongList> LibraryBrowser::FindDuplicates(const SongList& songs) {
+  static const QRegularExpression kNotWord("[^\\w]+");
+  auto normal = [](const QString& text) {
+    return text.toLower().remove(kNotWord);
+  };
+  QMap<QString, SongList> by_name;
+  for (const Song& song : songs) {
+    if (song.title().isEmpty() || song.artist().isEmpty()) continue;
+    by_name[normal(song.artist()) + "\n" + normal(song.title())] << song;
+  }
+
+  const qint64 tolerance = 3 * kNsecPerSec;
+  QList<SongList> groups;
+  for (SongList same : by_name) {
+    if (same.count() < 2) continue;
+    std::sort(same.begin(), same.end(), [](const Song& a, const Song& b) {
+      return a.length_nanosec() < b.length_nanosec();
+    });
+    // Runs of songs whose lengths are close: a live take and the studio
+    // one share a title but aren't duplicates.
+    SongList run;
+    for (const Song& song : same) {
+      if (!run.isEmpty() &&
+          song.length_nanosec() - run.last().length_nanosec() > tolerance) {
+        if (run.count() > 1) groups << run;
+        run.clear();
+      }
+      run << song;
+    }
+    if (run.count() > 1) groups << run;
+  }
+  return groups;
 }
 
 void LibraryBrowser::AlbumActivated(const QModelIndex& index) {
@@ -1082,6 +1289,7 @@ void LibraryBrowser::Loaded() {
   }
   if (!found && pages_->currentIndex() == Page_Album) ShowAlbums();
   UpdateAttention();
+  UpdateSmart();
   emit AudiobooksLoaded(result.audiobooks);
 
   QSet<QString> artists;

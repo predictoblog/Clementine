@@ -60,6 +60,7 @@ class NowPlayingPanel : public QWidget {
 
  signals:
   void CloseRequested();
+  void VisualizationsRequested();
   void CurrentPageChanged(int page);
 
  private:
